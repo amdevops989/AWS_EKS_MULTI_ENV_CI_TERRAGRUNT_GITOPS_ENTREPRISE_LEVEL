@@ -1,0 +1,15 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: backend-strict-mtls
+  namespace: default
+spec:
+  # Selector is mandatory when using portLevelMtls
+  selector:
+    matchLabels:
+      app: crud-backend # Matches your backend deployment pods
+  mtls:
+    mode: STRICT # Keeps your database and app paths fully encrypted
+  portLevelMtls:
+    "15020":
+      mode: PERMISSIVE # 🔓 EXCEPTION: Allows Prometheus to scrape metrics on port 15020 without certificates

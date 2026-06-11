@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: frontend-prod
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/amdevops989/docker-compose.git'
+    targetRevision: HEAD
+    path: gitops/kustomize/environments/prod/frontend
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: production
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # FIXED: Wrapped inside syncOptions array layer
+    syncOptions:
+      - CreateNamespace=true

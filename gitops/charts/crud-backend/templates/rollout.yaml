@@ -1,0 +1,100 @@
+# ==========================================================
+# DATABASE INFRASTRUCTURE CONFIGURATION CONFIGMAP & SECRET
+# ==========================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-prod-backend-config # Explicitly matches what the Pod is looking for
+  namespace: production
+  annotations:
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
+data: # FIXED: Ensure data block is directly under the root level, NOT nested under 'spec'
+  POSTGRES_USER: "devopsadmin"
+  POSTGRES_DB: "app_production"
+  DB_HOST: "database-engine.production.svc.cluster.local"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-backend-secret
+type: Opaque
+stringData:
+  # Kubernetes automatically base64 encodes values placed in stringData
+  POSTGRES_PASSWORD: "secretpassword"
+---
+# ==========================================================
+# 1. backend APP ARCHITECTURE (Canary Rollout + Services)
+# ==========================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: {{ .Release.Name }}-backend
+  labels:
+    app: {{ .Release.Name }}-backend
+spec:
+  replicas: {{ .Values.replicaCount | default 3 }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-backend
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-backend
+    spec: # FIXED: Properly aligned as a direct child of 'template'
+      containers:
+        - name: backend-ui
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000 # FIXED: Backend application port
+          env:
+            # 1. Read standard configs from your ConfigMap
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-backend-config
+                  key: DB_HOST
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-backend-config
+                  key: POSTGRES_USER
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-backend-config
+                  key: POSTGRES_DB
+
+            # 2. FIXED: Map the secret to BOTH possible variable targets your code might use
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-backend-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-backend-secret
+                  key: POSTGRES_PASSWORD
+  strategy: # FIXED: Aligned properly back as a direct child of the main 'spec'
+    {{- if eq .Values.strategyType "Canary" }}
+    canary:
+      stableService: {{ .Release.Name }}-stable # FIXED: Added -backend- infix to resolve cross-service routing validation drops
+      canaryService: {{ .Release.Name }}-canary # FIXED: Added -backend- infix
+      trafficRouting:
+        istio:
+          virtualService:
+            name: {{ .Release.Name }}-vservice # FIXED: Points to your isolated repository manifest
+            routes:
+              - backend-route
+      steps:
+        - setWeight: 20
+        - pause: { duration: 3m }
+        - analysis:
+            templates:
+              - templateName: {{ .Release.Name }}-success-rate
+        - setWeight: 50
+        - pause: { duration: 2m }
+    {{- else }}
+    rollingUpdate: {} 
+    {{- end }}

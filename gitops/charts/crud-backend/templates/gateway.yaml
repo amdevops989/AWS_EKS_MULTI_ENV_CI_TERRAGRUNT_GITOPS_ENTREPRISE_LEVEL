@@ -1,0 +1,17 @@
+# # NEW: The actual Istio Ingress Gateway config
+# apiVersion: networking.istio.io/v1alpha3
+# kind: Gateway
+# metadata:
+#   name: {{ .Release.Name }}-gateway
+#   namespace: {{ .Release.Namespace }}
+# spec:
+#   # Uses the standard default istio ingress controller pod selector
+#   selector:
+#     istio: ingressgateway 
+#   servers:
+#     - port:
+#         number: 80
+#         name: http
+#         protocol: HTTP
+#       hosts:
+#         - "ironstore.local"

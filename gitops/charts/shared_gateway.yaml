@@ -1,0 +1,15 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: ironstore-shared-gateway
+  namespace: istio-system # Placing it in the ingress namespace is standard practice
+spec:
+  selector:
+    istio: ingressgateway # Binds to your single active Minikube ingress controller
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "ironstore.local"

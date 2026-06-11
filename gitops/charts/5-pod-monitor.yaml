@@ -1,0 +1,20 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: istio-pods
+  namespace: monitoring
+  labels:
+    release: prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - default
+      - production
+  selector:
+    matchLabels:
+      security.istio.io/tlsMode: istio
+      # app: nginx
+  podMetricsEndpoints:
+    - port: http-envoy-prom
+      path: stats/prometheus

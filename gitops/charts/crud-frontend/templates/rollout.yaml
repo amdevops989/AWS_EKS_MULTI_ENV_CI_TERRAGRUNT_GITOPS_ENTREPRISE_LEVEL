@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: frontend-ui
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
+          ports:
+            - containerPort: 80
+  strategy:
+    {{- if eq .Values.strategyType "Canary" }}
+    canary:
+      # FIXED: Added '-frontend-' to match your VirtualService and Service destinations
+      stableService: {{ .Release.Name }}-stable
+      canaryService: {{ .Release.Name }}-canary
+      trafficRouting:
+        istio:
+          virtualService:
+            name: {{ .Release.Name }}-vservice
+            routes:
+              - frontend-route
+      steps:
+        - setWeight: 20
+        - pause: { duration: 1m }
+        - analysis:
+            templates:
+              - templateName: {{ .Release.Name }}-success-rate
+        - setWeight: 50
+        - pause: { duration: 2m }
+    {{- else }}
+    rollingUpdate: {} 
+    {{- end }}

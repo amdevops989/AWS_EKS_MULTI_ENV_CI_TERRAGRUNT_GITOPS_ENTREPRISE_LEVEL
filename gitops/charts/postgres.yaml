@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: database-engine
+  namespace: production
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: postgres-db
+  clusterIP: None
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-db
+  namespace: production
+spec:
+  serviceName: "database-engine"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-db # This one is correct (Selector uses matchLabels)
+  template:
+    metadata:
+      labels: # FIXED: Changed from matchLabels to labels
+        app: postgres-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          ports:
+            - containerPort: 5432
+              name: dbport
+          env:
+            - name: POSTGRES_USER
+              value: "devopsadmin"
+            - name: POSTGRES_PASSWORD
+              value: "secretpassword"
+            - name: POSTGRES_DB
+              value: "app_production"
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: pgdata
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 2Gi

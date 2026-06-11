@@ -1,0 +1,44 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: crud-app-gateway
+  namespace: default
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "*"
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: crud-app-virtual-service
+  namespace: default
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - crud-app-gateway
+  http:
+    # Rule B: Intercept the browser's /api/items query and rewrite it cleanly
+    - match:
+        - uri:
+            prefix: /api/items
+      rewrite:
+        uri: /items # Switches /api/items to /items before hitting the Node.js pod
+      route:
+        - destination:
+            host: backend-service
+            port:
+              number: 3000
+    # Rule A: Default base traffic routes to Nginx Frontend UI
+    - route:
+        - destination:
+            host: frontend-service
+            port:
+              number: 80

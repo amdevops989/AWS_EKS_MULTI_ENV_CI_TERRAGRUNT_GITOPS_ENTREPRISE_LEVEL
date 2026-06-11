@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: frontend-dev
+  namespace: argocd # Deployed into the ArgoCD management namespace
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/your-org/argo-gitops-repo.git' # Replace with your real repo URL
+    targetRevision: HEAD # Tracks the main branch
+    path: kustomize/environments/dev/frontend # Points directly to your dev folder
+  destination:
+    server: 'https://kubernetes.default.svc' # Deploys to your local cluster
+    namespace: dev
+  syncPolicy:
+    automated:
+      prune: true     # Automatically removes deleted resources
+      selfHeal: true  # Overwrites manual changes made via kubectl
+    # FIXED: Wrapped inside syncOptions array layer
+    syncOptions:
+      - CreateNamespace=true

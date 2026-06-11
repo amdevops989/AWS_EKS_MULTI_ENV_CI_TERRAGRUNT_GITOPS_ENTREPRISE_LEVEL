@@ -1,0 +1,22 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: {{ .Release.Name }}-vservice
+spec:
+  hosts:
+    - "ironstore.local"
+  gateways:
+    - istio-system/ironstore-shared-gateway # LINKED TO THE SHARED GATEWAY
+  http:
+    - name: frontend-route # MUST match the route name in your frontend Rollout spec
+      route:
+        - destination:
+            host: {{ .Release.Name }}-stable
+            port:
+              number: 80
+          weight: 100
+        - destination:
+            host: {{ .Release.Name }}-canary
+            port:
+              number: 80
+          weight: 0

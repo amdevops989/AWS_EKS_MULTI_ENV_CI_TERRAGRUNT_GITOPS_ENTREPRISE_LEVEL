@@ -1,0 +1,48 @@
+global:
+  postgresql:
+    auth:
+      username: postgres
+      password: postgres
+      database: mv100db
+
+primary:
+  service:
+    type: ClusterIP
+    ports:
+      postgresql: 5432
+
+  # -------------------------------
+  # ENABLE PERSISTENCE (PVC)
+  # -------------------------------
+  persistence:
+    enabled: true            # ✅ enable PVC
+    storageClass: "gp3-default" # updated for EKS gp3
+    size: 1Gi                # PVC size
+    accessModes:
+      - ReadWriteOnce
+
+  extendedConfiguration: |
+    wal_level = logical
+    max_wal_senders = 10
+    max_replication_slots = 10
+    max_wal_size = 1GB
+
+  # -------------------------------
+  # MOUNT YOUR INIT SQL
+  # -------------------------------
+  extraVolumes:
+    - name: init-sql
+      configMap:
+        name: postgres-init-sql
+
+  extraVolumeMounts:
+    - name: init-sql
+      mountPath: /docker-entrypoint-initdb.d/init-db.sql
+      subPath: init-db.sql
+      readOnly: true
+
+  # -------------------------------
+  # Force PostgreSQL to main node group
+  # -------------------------------
+  nodeSelector:
+    role: main

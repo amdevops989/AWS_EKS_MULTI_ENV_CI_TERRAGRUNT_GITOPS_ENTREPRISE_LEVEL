@@ -1,0 +1,12 @@
+replicaCount: 2
+
+image:
+  repository: devopsflow999/crud-frontend
+  tag: latest
+  pullPolicy: Always
+
+strategyType: RollingUpdate # Default strategy
+
+# Prometheus configuration defaults
+prometheus:
+  address: "http://prometheus-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090"

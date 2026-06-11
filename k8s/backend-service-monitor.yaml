@@ -1,0 +1,18 @@
+# apiVersion: monitoring.coreos.com/v1
+# kind: ServiceMonitor
+# metadata:
+#   name: backend-service-monitor
+#   namespace: monitoring # Deployed into the monitoring namespace where Prometheus lives
+#   labels:
+#     release: prometheus-stack # Crucial: Tells the prometheus-stack operator to pick up this configuration
+# spec:
+#   selector:
+#     matchLabels:
+#       app: crud-backend # Matches the label defined on your backend Service/Deployment
+#   namespaceSelector:
+#     matchNames:
+#       - default # Tells Prometheus to look in the default namespace for our app pods
+#   endpoints:
+#     - port: http-web # Matches the exact string name given to port 3000 in your service manifest
+#       path: /metrics
+#       interval: 15s

@@ -1,0 +1,20 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: istio-pods
+  namespace: monitoring
+  labels:
+    release: kube-prom-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - mv100
+      - demo
+  selector:
+    matchLabels:
+      istio: monitor
+      # app: nginx
+  podMetricsEndpoints:
+    - port: http-envoy-prom
+      path: stats/prometheus
