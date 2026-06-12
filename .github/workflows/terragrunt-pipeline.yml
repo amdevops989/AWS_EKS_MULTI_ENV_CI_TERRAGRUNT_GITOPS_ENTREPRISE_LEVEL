@@ -14,7 +14,7 @@ on:
     paths:
       - 'Infra_AWS/**'
 
-# 1. CONCURRENCY LOCK: Prevents multiple pushes from running applies at the same time
+# 1. CONCURRENCY LOCK: Prevents race conditions from overlapping pushes
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false 
@@ -26,9 +26,9 @@ permissions:
 
 env:
   TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
-  # Dynamically determine the target branch/environment baseline
+  # Dynamically determine target branch baseline whether it is a PR or a Push
   TARGET_ENV: ${{ github.base_ref || github.ref_name }}
-  # Working directory baseline matching repository structure
+  # Environmental working directory matching your live repository structure
   TG_WORKING_DIR: Infra_AWS/live/${{ github.base_ref || github.ref_name }}
 
 jobs:
@@ -36,14 +36,14 @@ jobs:
     name: Terragrunt ${{ github.event_name == 'pull_request' && 'Plan' || 'Apply' }} - ${{ github.base_ref || github.ref_name }}
     runs-on: ubuntu-latest
     
-    # Maps 'dev' branch to 'development' environment, and 'prod' branch to 'production' environment exactly
+    # Map branch keywords to explicit GitHub Environments (development or production)
     environment: ${{ (github.base_ref || github.ref_name) == 'dev' && 'development' || 'production' }}
 
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Essential for accurate git diffing
+          fetch-depth: 0 # Essential: Terragrunt needs complete history to parse git diffing accurately
 
       - name: Create Plugin Cache Dir
         run: mkdir -p ${{ env.TF_PLUGIN_CACHE_DIR }}
@@ -66,57 +66,64 @@ jobs:
         with:
           terragrunt-version: 0.58.3
 
-      # Pulls AWS_ROLE_ARN natively from the correctly loaded GitHub environment context (development/production)
+      # Assumes role securely via OIDC pulling configurations based on active Environment
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
-      # 3. UNIVERSAL DIFF LOGIC: Fixed path evaluation relative to root for robust filtering
+      # 3. DUAL ENGINE DIFF LOGIC: Seamless switching between PR contexts and Direct Branch Pushes
       - name: Determine Targeted Changes
         id: diff
         run: |
-          # Run the git diff from the repository ROOT to keep paths clean
           if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "Processing Pull Request lifecycle tracking..."
             BASE_SHA=$(jq -r .pull_request.base.sha < $GITHUB_EVENT_PATH)
             HEAD_SHA=$(jq -r .pull_request.head.sha < $GITHUB_EVENT_PATH)
             git diff --name-only $BASE_SHA $HEAD_SHA > raw_diff.txt
           else
-            git diff --name-only ${{ github.event.before }} ${{ github.sha }} > raw_diff.txt
+            echo "Processing Direct Branch Push lifecycle tracking..."
+            # Catch fresh branch initial pushes or force-pushes with broken event histories
+            if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ] || [ -z "${{ github.event.before }}" ]; then
+              echo "Fresh or standalone push tracking detected. Analyzing history baseline."
+              git diff --name-only HEAD~1 HEAD > raw_diff.txt || touch raw_diff.txt
+            else
+              git diff --name-only ${{ github.event.before }} ${{ github.sha }} > raw_diff.txt || touch raw_diff.txt
+            fi
           fi
           
           if [ ! -s raw_diff.txt ]; then
             echo "tg_args=" >> $GITHUB_OUTPUT
-            echo "No changes detected."
+            echo "No changes found across the git tracking delta."
             exit 0
           fi
 
-          echo "Raw Git Diff:"
+          echo "Raw Git Diff Captured:"
           cat raw_diff.txt
 
-          # Build filters based on root paths
+          # Check for shared modules or root modifications
           if grep -qE "modules/|env.hcl|root.hcl" raw_diff.txt; then
-            echo "Core shared files or modules modified. Evaluating all live units."
+            echo "Core shared files or modules modified. Automatically evaluating all live environment units."
             cd ${{ env.TG_WORKING_DIR }}
             find . -type f -name "terragrunt.hcl" -exec dirname {} \; | sed 's|^\./||' > ../../../filters-file.txt
             cd - > /dev/null
           else
-            echo "Isolating specific component changes."
+            echo "Isolating localized structural folder changes."
             grep -E "^${{ env.TG_WORKING_DIR }}/" raw_diff.txt | sed "s|^${{ env.TG_WORKING_DIR }}/||" | cut -d'/' -f1 | sort -u > filters-file.txt
           fi
           
-          # Format the final string outputs with absolute execution contexts
+          # Render include-dir commands with explicit absolute structure mappings
           if [ -s filters-file.txt ]; then
             TG_ARGS=$(awk -v dir="${{ env.TG_WORKING_DIR }}" '{printf "--terragrunt-include-dir=%s/%s ", dir, $0}' filters-file.txt)
             echo "tg_args=$TG_ARGS" >> $GITHUB_OUTPUT
             echo "Filters configured: $TG_ARGS"
           else
             echo "tg_args=" >> $GITHUB_OUTPUT
-            echo "No matching live environment changes."
+            echo "No live components matched the changes."
           fi
 
-      # 4. PR LIFECYCLE: Read-Only Plan
+      # 4. PR LIFECYCLE: Read-Only Plan execution context
       - name: Terragrunt Plan (Pull Request)
         if: github.event_name == 'pull_request' && steps.diff.outputs.tg_args != ''
         working-directory: ${{ env.TG_WORKING_DIR }}
@@ -126,7 +133,7 @@ jobs:
             --terragrunt-ignore-external-dependencies \
             --terragrunt-non-interactive
 
-      # # 5. MERGE LIFECYCLE: Mutating Apply
+      # # 5. MERGE / DIRECT PUSH LIFECYCLE: Mutating automated Apply
       # - name: Terragrunt Apply (Push/Merge)
       #   if: github.event_name == 'push' && steps.diff.outputs.tg_args != ''
       #   working-directory: ${{ env.TG_WORKING_DIR }}
