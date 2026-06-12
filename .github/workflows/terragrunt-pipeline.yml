@@ -1,0 +1,63 @@
+name: Multi-Env Infrastructure Pipeline
+
+on:
+  push:
+    branches:
+      - dev
+      - prod
+    paths:
+      - 'Infra_AWS/**'
+      - '.github/workflows/terragrunt-pipeline.yml'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'dev' && 'development' || 'production' }}
+    
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Crucial: Terragrunt needs full history to run a precise git diff
+
+      - name: Setup OpenTofu/Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+
+      - name: Setup Terragrunt
+        uses: autero1/action-terragrunt@v3
+        with:
+          terragrunt-version: latest
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      # Terragrunt native dependency tracking execution
+      - name: Terragrunt Smart Run
+        run: |
+          cd Infra_AWS/live/${{ github.ref_name }}
+          
+          echo "Determining changed modules dynamically..."
+          # Fetch all files modified between the current commit and its parent
+          CHANGED_FILES=$(git diff --name-only HEAD^ HEAD | tr '\n' ',' | sed 's/,$//')
+          
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No changes found."
+            exit 0
+          fi
+          
+          echo "Files changed: $CHANGED_FILES"
+          
+          # Run plan all, but narrow the target execution scope strictly 
+          # to the modules impacted by the modified files in the git diff
+          terragrunt run-all plan \
+            --terragrunt-modules-that-include=$CHANGED_FILES \
+            --terragrunt-non-interactive
