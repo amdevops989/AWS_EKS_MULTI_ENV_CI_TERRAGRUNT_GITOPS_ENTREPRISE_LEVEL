@@ -41,12 +41,12 @@ jobs:
           aws-region: us-east-1
 
       # Terragrunt native dependency tracking execution
+      # Terragrunt native dependency tracking execution
       - name: Terragrunt Smart Run
         run: |
           cd Infra_AWS/live/${{ github.ref_name }}
           
           echo "Determining changed modules dynamically..."
-          # Get files changed between current commit and its parent
           CHANGED_FILES=$(git diff --name-only HEAD^ HEAD | tr '\n' ',' | sed 's/,$//')
           
           if [ -z "$CHANGED_FILES" ]; then
@@ -56,14 +56,16 @@ jobs:
           
           echo "Files changed: $CHANGED_FILES"
           
-          # IF core modules, shared env configs, or root files change, plan everything in the environment.
+          # Force stdout to remain unbuffered so logs flush cleanly to GitHub in real-time
+          export TF_IN_AUTOMATION=true
+          
           if echo "$CHANGED_FILES" | grep -E "modules/|env.hcl|root.hcl" > /dev/null; then
             echo "Core infrastructure files or modules modified. Processing entire environment stack..."
-            terragrunt run-all plan --terragrunt-non-interactive
+            # Added compact-warnings to reduce log bloat
+            terragrunt run-all plan --terragrunt-non-interactive -compact-warnings
           else
-            # Otherwise, target only the specific live sub-folders that explicitly matched the diff
             echo "Targeting specific live modules matching: $CHANGED_FILES"
             terragrunt run-all plan \
               --terragrunt-modules-that-include=$CHANGED_FILES \
-              --terragrunt-non-interactive
+              --terragrunt-non-interactive -compact-warnings
           fi
