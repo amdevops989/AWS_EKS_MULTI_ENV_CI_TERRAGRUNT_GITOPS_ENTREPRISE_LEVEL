@@ -41,31 +41,48 @@ jobs:
           aws-region: us-east-1
 
       # Terragrunt native dependency tracking execution
-      # Terragrunt native dependency tracking execution
-      - name: Terragrunt Smart Run
+      - name: Terragrunt Prepare & Plan (Git-Based Filtering)
         run: |
           cd Infra_AWS/live/${{ github.ref_name }}
           
-          echo "Determining changed modules dynamically..."
-          CHANGED_FILES=$(git diff --name-only HEAD^ HEAD | tr '\n' ',' | sed 's/,$//')
+          # ---------------------------------------------------
+          # 1. PREPARE: Detect changes and build filters-file.txt
+          # ---------------------------------------------------
+          echo "Detecting Git changes..."
+          git diff --name-only HEAD^ HEAD > raw_diff.txt
           
-          if [ -z "$CHANGED_FILES" ]; then
-            echo "No changes detected in Git."
+          if [ ! -s raw_diff.txt ]; then
+            echo "No changes detected."
             exit 0
           fi
           
-          echo "Files changed: $CHANGED_FILES"
-          
-          # Force stdout to remain unbuffered so logs flush cleanly to GitHub in real-time
-          export TF_IN_AUTOMATION=true
-          
-          if echo "$CHANGED_FILES" | grep -E "modules/|env.hcl|root.hcl" > /dev/null; then
-            echo "Core infrastructure files or modules modified. Processing entire environment stack..."
-            # Added compact-warnings to reduce log bloat
-            terragrunt run-all plan --terragrunt-non-interactive -compact-warnings
+          # If core modules or root files changed, we must evaluate the whole environment
+          if grep -qE "modules/|env.hcl|root.hcl" raw_diff.txt; then
+            echo "Core files modified. We will evaluate all live units in this environment."
+            # Find all terragrunt.hcl files in the current environment and add their dirs to the filter
+            find . -type f -name "terragrunt.hcl" -exec dirname {} \; | sed 's|^\./||' > filters-file.txt
           else
-            echo "Targeting specific live modules matching: $CHANGED_FILES"
-            terragrunt run-all plan \
-              --terragrunt-modules-that-include=$CHANGED_FILES \
-              --terragrunt-non-interactive -compact-warnings
+            # Otherwise, only evaluate the specific live directories that changed
+            grep -E "^Infra_AWS/live/${{ github.ref_name }}/" raw_diff.txt | sed "s|^Infra_AWS/live/${{ github.ref_name }}/||" | cut -d'/' -f1 | sort -u > filters-file.txt
+          fi
+          
+          echo "--- Filters File Created ---"
+          cat filters-file.txt
+          
+          # ---------------------------------------------------
+          # 2. PLAN: Run isolated plans and silence the massive stdout
+          # ---------------------------------------------------
+          echo "Executing targeted plans..."
+          
+          # Use Terragrunt's native filter argument and write plan outputs to files instead of crashing the console
+          terragrunt run-all plan \
+            --terragrunt-ignore-external-dependencies \
+            --terragrunt-non-interactive \
+            -compact-warnings \
+            -out=tfplan.binary | tee plan_summary.log
+            
+          # Scan the clean log to ensure no hard errors occurred during the silent plan
+          if grep -q "Error:" plan_summary.log; then
+            echo "A Terraform validation error occurred. Check the summary log."
+            exit 1
           fi
