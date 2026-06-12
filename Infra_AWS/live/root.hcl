@@ -1,7 +1,10 @@
 locals {
   aws_region   = "us-east-1"
-  aws_profile  = "devops-dev"
   project_name = "vanguardyouth"
+  
+  # If running in GitHub Actions, pass an empty string for the profile 
+  # so Terraform falls back to the OIDC environment variables automatically.
+  aws_profile  = get_env("GITHUB_ACTIONS", "false") == "true" ? "" : "devops-dev"
 }
 
 # ===============================#
@@ -43,11 +46,10 @@ terraform {
     key            = "eks/${path_relative_to_include()}/terraform.tfstate"
     region         = "${local.aws_region}"
     dynamodb_table = "${local.project_name}-tf-locks"
-    profile        = "${local.aws_profile}"
+    ${local.aws_profile != "" ? "profile = \"${local.aws_profile}\"" : ""}
     encrypt        = true
   }
 }
 EOF
 }
-
 
