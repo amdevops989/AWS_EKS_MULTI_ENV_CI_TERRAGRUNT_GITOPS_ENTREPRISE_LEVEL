@@ -46,18 +46,24 @@ jobs:
           cd Infra_AWS/live/${{ github.ref_name }}
           
           echo "Determining changed modules dynamically..."
-          # Fetch all files modified between the current commit and its parent
+          # Get files changed between current commit and its parent
           CHANGED_FILES=$(git diff --name-only HEAD^ HEAD | tr '\n' ',' | sed 's/,$//')
           
           if [ -z "$CHANGED_FILES" ]; then
-            echo "No changes found."
+            echo "No changes detected in Git."
             exit 0
           fi
           
           echo "Files changed: $CHANGED_FILES"
           
-          # Run plan all, but narrow the target execution scope strictly 
-          # to the modules impacted by the modified files in the git diff
-          terragrunt run-all plan \
-            --terragrunt-modules-that-include=$CHANGED_FILES \
-            --terragrunt-non-interactive
+          # IF core modules, shared env configs, or root files change, plan everything in the environment.
+          if echo "$CHANGED_FILES" | grep -E "modules/|env.hcl|root.hcl" > /dev/null; then
+            echo "Core infrastructure files or modules modified. Processing entire environment stack..."
+            terragrunt run-all plan --terragrunt-non-interactive
+          else
+            # Otherwise, target only the specific live sub-folders that explicitly matched the diff
+            echo "Targeting specific live modules matching: $CHANGED_FILES"
+            terragrunt run-all plan \
+              --terragrunt-modules-that-include=$CHANGED_FILES \
+              --terragrunt-non-interactive
+          fi
