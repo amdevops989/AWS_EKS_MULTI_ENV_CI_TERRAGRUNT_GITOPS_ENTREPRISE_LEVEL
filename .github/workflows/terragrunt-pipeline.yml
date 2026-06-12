@@ -36,7 +36,7 @@ jobs:
     name: Terragrunt ${{ github.event_name == 'pull_request' && 'Plan' || 'Apply' }} - ${{ github.base_ref || github.ref_name }}
     runs-on: ubuntu-latest
     
-    # FIX: Maps 'dev' branch to 'development' environment, and 'prod' branch to 'production' environment
+    # Maps 'dev' branch to 'development' environment, and 'prod' branch to 'production' environment exactly
     environment: ${{ (github.base_ref || github.ref_name) == 'dev' && 'development' || 'production' }}
 
     steps:
@@ -66,20 +66,18 @@ jobs:
         with:
           terragrunt-version: 0.58.3
 
-      # FIX: Pulls AWS_ROLE_ARN natively from the correctly loaded GitHub environment context
+      # Pulls AWS_ROLE_ARN natively from the correctly loaded GitHub environment context (development/production)
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
-      # 3. UNIVERSAL DIFF LOGIC: Handles both PRs and Pushes seamlessly
+      # 3. UNIVERSAL DIFF LOGIC: Fixed path evaluation relative to root for robust filtering
       - name: Determine Targeted Changes
         id: diff
         run: |
-          cd ${{ env.TG_WORKING_DIR }}
-          
-          # Differentiate git logic based on the event type
+          # Run the git diff from the repository ROOT to keep paths clean
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             BASE_SHA=$(jq -r .pull_request.base.sha < $GITHUB_EVENT_PATH)
             HEAD_SHA=$(jq -r .pull_request.head.sha < $GITHUB_EVENT_PATH)
@@ -94,37 +92,43 @@ jobs:
             exit 0
           fi
 
-          # Build the filters
+          echo "Raw Git Diff:"
+          cat raw_diff.txt
+
+          # Build filters based on root paths
           if grep -qE "modules/|env.hcl|root.hcl" raw_diff.txt; then
-            find . -type f -name "terragrunt.hcl" -exec dirname {} \; | sed 's|^\./||' > filters-file.txt
+            echo "Core shared files or modules modified. Evaluating all live units."
+            cd ${{ env.TG_WORKING_DIR }}
+            find . -type f -name "terragrunt.hcl" -exec dirname {} \; | sed 's|^\./||' > ../../../filters-file.txt
+            cd - > /dev/null
           else
+            echo "Isolating specific component changes."
             grep -E "^${{ env.TG_WORKING_DIR }}/" raw_diff.txt | sed "s|^${{ env.TG_WORKING_DIR }}/||" | cut -d'/' -f1 | sort -u > filters-file.txt
           fi
           
-          # Output arguments for the next steps
+          # Format the final string outputs with absolute execution contexts
           if [ -s filters-file.txt ]; then
-            TG_ARGS=$(awk '{printf "--terragrunt-include-dir=%s ", $0}' filters-file.txt)
+            TG_ARGS=$(awk -v dir="${{ env.TG_WORKING_DIR }}" '{printf "--terragrunt-include-dir=%s/%s ", dir, $0}' filters-file.txt)
             echo "tg_args=$TG_ARGS" >> $GITHUB_OUTPUT
             echo "Filters configured: $TG_ARGS"
           else
             echo "tg_args=" >> $GITHUB_OUTPUT
+            echo "No matching live environment changes."
           fi
 
       # 4. PR LIFECYCLE: Read-Only Plan
       - name: Terragrunt Plan (Pull Request)
         if: github.event_name == 'pull_request' && steps.diff.outputs.tg_args != ''
         run: |
-          cd ${{ env.TG_WORKING_DIR }}
           terragrunt run-all plan \
             ${{ steps.diff.outputs.tg_args }} \
             --terragrunt-ignore-external-dependencies \
             --terragrunt-non-interactive
 
-      # # 5. MERGE LIFECYCLE: Mutating Apply (Uncommented and operational)
+      # # 5. MERGE LIFECYCLE: Mutating Apply
       # - name: Terragrunt Apply (Push/Merge)
       #   if: github.event_name == 'push' && steps.diff.outputs.tg_args != ''
       #   run: |
-      #     cd ${{ env.TG_WORKING_DIR }}
       #     terragrunt run-all apply \
       #       ${{ steps.diff.outputs.tg_args }} \
       #       --terragrunt-ignore-external-dependencies \
