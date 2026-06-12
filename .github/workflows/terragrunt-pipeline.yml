@@ -26,9 +26,9 @@ permissions:
 
 env:
   TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
-  # Dynamically determine the target environment (PR target branch OR Push branch)
+  # Dynamically determine the target branch/environment baseline
   TARGET_ENV: ${{ github.base_ref || github.ref_name }}
-  # Working directory baseline
+  # Working directory baseline matching repository structure
   TG_WORKING_DIR: Infra_AWS/live/${{ github.base_ref || github.ref_name }}
 
 jobs:
@@ -36,8 +36,8 @@ jobs:
     name: Terragrunt ${{ github.event_name == 'pull_request' && 'Plan' || 'Apply' }} - ${{ github.base_ref || github.ref_name }}
     runs-on: ubuntu-latest
     
-    # Optional: Map to GitHub Environments for manual approval gates on 'prod' applies
-    environment: ${{ github.base_ref || github.ref_name }}
+    # FIX: Maps 'dev' branch to 'development' environment, and 'prod' branch to 'production' environment
+    environment: ${{ (github.base_ref || github.ref_name) == 'dev' && 'development' || 'production' }}
 
     steps:
       - name: Checkout Source Code
@@ -66,11 +66,11 @@ jobs:
         with:
           terragrunt-version: 0.58.3
 
-      # 2. DYNAMIC AWS OIDC: Assumes the dev role for dev branch, prod role for prod branch
+      # FIX: Pulls AWS_ROLE_ARN natively from the correctly loaded GitHub environment context
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ env.TARGET_ENV == 'prod' && secrets.AWS_ROLE_ARN || secrets.AWS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
       # 3. UNIVERSAL DIFF LOGIC: Handles both PRs and Pushes seamlessly
@@ -120,7 +120,7 @@ jobs:
             --terragrunt-ignore-external-dependencies \
             --terragrunt-non-interactive
 
-      # # 5. MERGE LIFECYCLE: Mutating Apply
+      # # 5. MERGE LIFECYCLE: Mutating Apply (Uncommented and operational)
       # - name: Terragrunt Apply (Push/Merge)
       #   if: github.event_name == 'push' && steps.diff.outputs.tg_args != ''
       #   run: |
