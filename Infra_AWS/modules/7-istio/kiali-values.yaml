@@ -1,0 +1,18 @@
+auth:
+  strategy: "anonymous"
+
+istio_namespace: istio-system
+
+prometheus:
+  enabled: false
+  url: http://kube-prom-stack-kube-prome-prometheus.monitoring.svc.cluster.local:9090
+
+deployment:
+  namespace: istio-system
+
+server:
+  web_root: /
+  route_prefix: /
+
+namespace_access:
+  mode: all
