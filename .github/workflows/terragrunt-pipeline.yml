@@ -119,6 +119,7 @@ jobs:
       # 4. PR LIFECYCLE: Read-Only Plan
       - name: Terragrunt Plan (Pull Request)
         if: github.event_name == 'pull_request' && steps.diff.outputs.tg_args != ''
+        working-directory: ${{ env.TG_WORKING_DIR }}
         run: |
           terragrunt run-all plan \
             ${{ steps.diff.outputs.tg_args }} \
@@ -128,6 +129,7 @@ jobs:
       # # 5. MERGE LIFECYCLE: Mutating Apply
       # - name: Terragrunt Apply (Push/Merge)
       #   if: github.event_name == 'push' && steps.diff.outputs.tg_args != ''
+      #   working-directory: ${{ env.TG_WORKING_DIR }}
       #   run: |
       #     terragrunt run-all apply \
       #       ${{ steps.diff.outputs.tg_args }} \
