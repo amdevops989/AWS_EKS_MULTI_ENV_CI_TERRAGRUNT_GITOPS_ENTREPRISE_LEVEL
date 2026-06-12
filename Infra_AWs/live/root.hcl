@@ -1,7 +1,7 @@
 locals {
   aws_region   = "us-east-1"
-  aws_profile  = "dev-sso"
-  project_name = "travelersources"
+  aws_profile  = "devops-dev"
+  project_name = "vanguardyouth"
 }
 
 # ===============================#
@@ -43,6 +43,7 @@ terraform {
     key            = "eks/${path_relative_to_include()}/terraform.tfstate"
     region         = "${local.aws_region}"
     dynamodb_table = "${local.project_name}-tf-locks"
+    profile        = "${local.aws_profile}"
     encrypt        = true
   }
 }

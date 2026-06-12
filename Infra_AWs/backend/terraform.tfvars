@@ -1,10 +1,10 @@
 region = "us-east-1"
 
-profile = "dev-sso"
+profile = "devops-dev"
 
-bucket_name = "travelersources-tfstate"
+bucket_name = "vanguardyouth-tfstate"
 
-lock_table_name = "travelersources-tf-locks"
+lock_table_name = "vanguardyouth-tf-locks"
 
 tags = {
   Environment = "dev"
