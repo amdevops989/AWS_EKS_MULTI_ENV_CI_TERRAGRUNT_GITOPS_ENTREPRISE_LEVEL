@@ -12,7 +12,7 @@
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
         },
         "StringLike": {
-          "token.actions.githubusercontent.com:sub": "repo:YOUR_GITHUB_USERNAME_OR_ORG/AWS_EKS_MULTI_ENV_CI_TERRAGRUNT_GITOPS_ENTREPRISE_LEVE:*"
+          "token.actions.githubusercontent.com:sub": "repo:amdevops989/AWS_EKS_MULTI_ENV_CI_TERRAGRUNT_GITOPS_ENTREPRISE_LEVEL:*"
         }
       }
     }
