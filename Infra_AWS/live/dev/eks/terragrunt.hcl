@@ -40,8 +40,8 @@ inputs = {
   intra_subnets        = dependency.vpc.outputs.intra_subnet_ids
 
   # --- SPOT NODE CONFIGURATION ---
-  node_instance_type    = ["m5.xlarge"] # Best practice for Spot: use multiple similar instance types to avoid stock-outs
-  capacity_type         = "SPOT"                                 # Enforces Spot instances
+  node_instance_type    = ["m5.xlarge", "m5a.xlarge", "m5d.xlarge", "m6i.xlarge", "m6a.xlarge"] 
+  capacity_type         = "SPOT"                                 
   node_desired_capacity = 1
   node_min_capacity     = 0
   node_max_capacity     = 1
