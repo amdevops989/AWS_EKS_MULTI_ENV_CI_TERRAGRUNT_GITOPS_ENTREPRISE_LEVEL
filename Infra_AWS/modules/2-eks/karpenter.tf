@@ -32,6 +32,11 @@ resource "helm_release" "karpenter" {
   repository_password = data.aws_ecrpublic_authorization_token.token.password
   chart               = "karpenter"
   version             = "1.0.0"
+  # --- ADD THESE FLAGS TO PREVENT HOOK HANGS ---
+  wait                = false
+  force_update        = true
+  cleanup_on_fail     = true
+  # ---------------------------------------------
   
   # Keep wait = false and add force_update during this recovery run
   wait                = false
