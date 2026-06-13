@@ -133,13 +133,13 @@ jobs:
             --terragrunt-ignore-external-dependencies \
             --terragrunt-non-interactive
 
-      # # 5. MERGE / DIRECT PUSH LIFECYCLE: Mutating automated Apply
-      # - name: Terragrunt Apply (Push/Merge)
-      #   if: github.event_name == 'push' && steps.diff.outputs.tg_args != ''
-      #   working-directory: ${{ env.TG_WORKING_DIR }}
-      #   run: |
-      #     terragrunt run-all apply \
-      #       ${{ steps.diff.outputs.tg_args }} \
-      #       --terragrunt-ignore-external-dependencies \
-      #       --terragrunt-non-interactive \
-      #       -auto-approve
+      # 5. MERGE / DIRECT PUSH LIFECYCLE: Mutating automated Apply
+      - name: Terragrunt Apply (Push/Merge)
+        if: github.event_name == 'push' && steps.diff.outputs.tg_args != ''
+        working-directory: ${{ env.TG_WORKING_DIR }}
+        run: |
+          terragrunt run-all apply \
+            ${{ steps.diff.outputs.tg_args }} \
+            --terragrunt-ignore-external-dependencies \
+            --terragrunt-non-interactive \
+            -auto-approve
