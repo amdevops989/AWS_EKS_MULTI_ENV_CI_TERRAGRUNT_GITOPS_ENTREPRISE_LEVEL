@@ -33,9 +33,13 @@ resource "helm_release" "karpenter" {
   chart               = "karpenter"
   version             = "1.0.0"
   
+  # ---------------------------------------------
+  
   # Keep wait = false and add force_update during this recovery run
   wait                = false
   force_update        = true
+  cleanup_on_fail     = true
+
 
   values = [
     <<-EOT
