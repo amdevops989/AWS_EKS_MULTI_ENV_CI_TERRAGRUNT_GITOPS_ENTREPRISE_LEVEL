@@ -2,18 +2,14 @@
 # Karpenter
 ###############################################################################
 module "karpenter" {
-  source = "terraform-aws-modules/eks/aws//modules/karpenter"
+  source  = "terraform-aws-modules/eks/aws//modules/karpenter"
   version = "21.15.1"
 
   cluster_name = module.eks.cluster_name
 
-##  in case you want to use the node group iam role
-#   node_iam_role_arn    = module.eks.eks_managed_node_groups["initial"].iam_role_arn
-
-  # enable_v1_permissions = true
-
-  # enable_pod_identity             = true
-  # create_pod_identity_association = true
+ # --- FIX: Change variable names to match module v21.15.1 schema ---
+  create_pod_identity_association = true
+  # ------------------------------------------------------------------
 
   # Attach additional IAM policies to the Karpenter node IAM role
   node_iam_role_additional_policies = {
@@ -32,7 +28,10 @@ resource "helm_release" "karpenter" {
   repository_password = data.aws_ecrpublic_authorization_token.token.password
   chart               = "karpenter"
   version             = "1.0.0"
+  
+  # Keep wait = false and add force_update during this recovery run
   wait                = false
+  force_update        = true
 
   values = [
     <<-EOT
@@ -68,7 +67,7 @@ resource "kubectl_manifest" "karpenter_node_pool" {
             - key: "karpenter.k8s.aws/instance-cpu"
               operator: In
               values: ["4", "8", "16", "32"]
-            - key: karpenter.sh/capacity-type   ## Spot
+            - key: karpenter.sh/capacity-type
               operator: In
               values: ["spot"]
             - key: "karpenter.k8s.aws/instance-hypervisor"
@@ -109,14 +108,12 @@ resource "kubectl_manifest" "karpenter_node_class" {
       blockDeviceMappings:
         - deviceName: /dev/xvda
           ebs:
-            volumeSize: "20Gi"      # must be string
-            volumeType: "gp3"     # must be string
+            volumeSize: "20Gi"
+            volumeType: "gp3"
             encrypted: true
-            # kmsKeyId: "alias/aws/ebs"   # optional
   YAML
 
   depends_on = [
     helm_release.karpenter
   ]
 }
-

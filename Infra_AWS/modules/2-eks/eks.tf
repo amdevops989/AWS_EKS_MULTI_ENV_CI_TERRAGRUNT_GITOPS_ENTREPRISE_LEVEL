@@ -64,8 +64,9 @@ module "eks" {
   # --- ADD THIS BLOCK TO MAP YOUR AWS SSO ADMINISTRATOR ACCESS ROLE ---
   access_entries = {
     console_admin = {
-      principal_arn     = "arn:aws:iam::272495906318:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AdministratorAccess_ad80597e4fb78530"
-      type              = "STANDARD"  # <--- Change this to UPPERCASE
+      # Updated with your exact active SSO Role ARN from the dropdown
+      principal_arn     = "arn:aws:iam::272495906318:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AWSAdministratorAccess_58741448858b49f4"
+      type              = "STANDARD"
       
       policy_associations = {
         admin_policy = {
