@@ -16,7 +16,6 @@ dependency "vpc" {
     public_subnet_ids  = ["subnet-a","subnet-b"]
     private_subnet_ids = ["subnet-c","subnet-d"]
     intra_subnet_ids   = ["subnet-e","subnet-f"]
-
   }
   mock_outputs_merge_with_state = true
 }
@@ -40,26 +39,22 @@ inputs = {
   private_subnets      = dependency.vpc.outputs.private_subnet_ids
   intra_subnets        = dependency.vpc.outputs.intra_subnet_ids
 
-  node_instance_type   = ["m5.large"]    # spot mode for dev and test
+  # --- SPOT NODE CONFIGURATION ---
+  node_instance_type    = ["m5.large", "m5a.large", "m5d.large"] # Best practice for Spot: use multiple similar instance types to avoid stock-outs
+  capacity_type         = "SPOT"                                 # Enforces Spot instances
   node_desired_capacity = 1
   node_min_capacity     = 0
   node_max_capacity     = 1
+  # -------------------------------
+
   ssh_key_name          = ""
-  # kms_key_arn           = "arn:aws:kms:us-east-1:272495906318:key/54e3bb98-a1ee-4d8f-86cb-308fbbfc56c9"
-  # admin_roles           = [
-  #   "arn:aws:iam::272495906318:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AdministratorAccess_ad80597e4fb78530",
-  #   "arn:aws:iam::272495906318:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_Eks-Admins_8a9129606b3cd370"
-  # ]
-  # developer_roles       = [
-  #   "arn:aws:iam::272495906318:role/MyDeveloperRole"
-  # ]
+  
   tags = {
     Project     = include.root.locals.project_name
     Environment = include.env.locals.env
   }
-  cluster_version = "1.33"  ## later use 1.33 or higher 
-  volume_size = 30
-  volume_type = "gp3"
-  architecture = "x86_64"
-
+  cluster_version = "1.33"
+  volume_size     = 30
+  volume_type     = "gp3"
+  architecture    = "x86_64"
 }
