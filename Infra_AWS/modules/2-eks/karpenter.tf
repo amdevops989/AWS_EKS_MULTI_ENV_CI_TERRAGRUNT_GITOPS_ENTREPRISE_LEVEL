@@ -1,19 +1,23 @@
 ###############################################################################
 # Karpenter
 ###############################################################################
+###############################################################################
+# Karpenter
+###############################################################################
 module "karpenter" {
   source  = "terraform-aws-modules/eks/aws//modules/karpenter"
   version = "21.15.1"
 
   cluster_name = module.eks.cluster_name
 
- # --- FIX: Change variable names to match module v21.15.1 schema ---
   create_pod_identity_association = true
-  # ------------------------------------------------------------------
 
   # Attach additional IAM policies to the Karpenter node IAM role
   node_iam_role_additional_policies = {
     AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+    
+    # --- FIX: Add this policy so nodes can pull from public.ecr.aws ---
+    ECRPublicReadOnly            = "arn:aws:iam::aws:policy/AmazonElasticContainerRegistryPublicReadOnly"
   }
 }
 
