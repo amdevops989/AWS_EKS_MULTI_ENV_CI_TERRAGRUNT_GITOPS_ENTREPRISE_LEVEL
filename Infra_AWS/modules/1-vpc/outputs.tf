@@ -18,7 +18,7 @@ output "intra_subnet_ids" {
   value       = module.vpc.intra_subnets
 }
 
-# output "nat_gateway_ids" {
-#   description = "NAT Gateway IDs (list)"
-#   value       = module.vpc.natgw_ids
-# }
+output "nat_gateway_ids" {
+  description = "NAT Gateway IDs (list)"
+  value       = module.vpc.natgw_ids
+}
