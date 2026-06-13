@@ -123,23 +123,30 @@ jobs:
             echo "No live components matched the changes."
           fi
 
-      # 4. PR LIFECYCLE: Read-Only Plan execution context
-      - name: Terragrunt Plan (Pull Request)
-        if: github.event_name == 'pull_request' && steps.diff.outputs.tg_args != ''
-        working-directory: ${{ env.TG_WORKING_DIR }}
-        run: |
-          terragrunt run-all plan \
-            ${{ steps.diff.outputs.tg_args }} \
-            --terragrunt-ignore-external-dependencies \
-            --terragrunt-non-interactive
+      # # 4. PR LIFECYCLE: Read-Only Plan execution context
+      # - name: Terragrunt Plan (Pull Request)
+      #   if: github.event_name == 'pull_request' && steps.diff.outputs.tg_args != ''
+      #   working-directory: ${{ env.TG_WORKING_DIR }}
+      #   run: |
+      #     terragrunt run-all plan \
+      #       ${{ steps.diff.outputs.tg_args }} \
+      #       --terragrunt-ignore-external-dependencies \
+      #       --terragrunt-non-interactive
 
-      # 5. MERGE / DIRECT PUSH LIFECYCLE: Mutating automated Apply
-      - name: Terragrunt Apply (Push/Merge)
-        if: github.event_name == 'push' && steps.diff.outputs.tg_args != ''
-        working-directory: ${{ env.TG_WORKING_DIR }}
+      # # 5. MERGE / DIRECT PUSH LIFECYCLE: Mutating automated Apply
+      # - name: Terragrunt Apply (Push/Merge)
+      #   if: github.event_name == 'push' && steps.diff.outputs.tg_args != ''
+      #   working-directory: ${{ env.TG_WORKING_DIR }}
+      #   run: |
+      #     terragrunt run-all apply \
+      #       ${{ steps.diff.outputs.tg_args }} \
+      #       --terragrunt-ignore-external-dependencies \
+      #       --terragrunt-non-interactive \
+      #       -auto-approve
+
+      - name: Terragrunt Destroy All
         run: |
-          terragrunt run-all apply \
-            ${{ steps.diff.outputs.tg_args }} \
-            --terragrunt-ignore-external-dependencies \
-            --terragrunt-non-interactive \
-            -auto-approve
+          terragrunt destroy-all --terragrunt-non-interactive \
+            --terragrunt-sync-lock-file \
+            -terragrunt-reconfigure \
+            -upgrade
