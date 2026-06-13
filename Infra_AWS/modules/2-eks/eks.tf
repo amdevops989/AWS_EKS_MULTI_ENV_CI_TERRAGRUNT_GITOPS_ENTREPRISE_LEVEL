@@ -31,7 +31,6 @@ module "eks" {
 
   eks_managed_node_groups = {
     karpenter = {
-      # Starting on 1.30, AL2023 is the default AMI type for EKS managed node groups
       ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = var.node_instance_type
       labels = {
@@ -52,28 +51,34 @@ module "eks" {
             iops                  = 3000
             throughput            = 125
             encrypted             = true
-            # kms_key_id            = module.kms.key_arn
-            
             delete_on_termination = true
           }
         }
       }
-      
-      # taints = {
-      #   # This Taint aims to keep just EKS Addons and Karpenter running on this MNG
-      #   # The pods that do not tolerate this taint should run on nodes created by Karpenter
-      #   addons = {
-      #     key    = "CriticalAddonsOnly"
-      #     value  = "true"
-      #     effect = "NO_SCHEDULE"
-      #   },
-      # }
     }
   }
 
   # Cluster access entry
-  # To add the current caller identity as an administrator
   enable_cluster_creator_admin_permissions = true
+
+  # --- ADD THIS BLOCK TO MAP YOUR AWS SSO ADMINISTRATOR ACCESS ROLE ---
+  access_entries = {
+    console_admin = {
+      # The exact IAM Role ARN showing the warning in your screenshot
+      principal_arn     = "arn:aws:iam::272495906318:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AdministratorAccess_ad80597e4fb78530"
+      type              = "standard"
+      
+      policy_associations = {
+        admin_policy = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
+  # --------------------------------------------------------------------
 
   create_kms_key = false
   encryption_config = {
@@ -82,9 +87,6 @@ module "eks" {
   }
 
   node_security_group_tags = {
-    # NOTE - if creating multiple security groups with this module, only tag the
-    # security group that Karpenter should utilize with the following tag
-    # (i.e. - at most, only one security group should have this tag in your account)
     "karpenter.sh/discovery" = var.cluster_name
   }
 }
