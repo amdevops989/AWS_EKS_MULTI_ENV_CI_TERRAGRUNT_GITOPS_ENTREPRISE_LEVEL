@@ -42,6 +42,13 @@ module "eks" {
       max_size     = var.node_max_capacity
       desired_size = var.node_desired_capacity
 
+      # --- FIX: Add public ECR permissions to this node group ---
+      iam_role_additional_policies = {
+        AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+        ECRPublicReadOnly            = "arn:aws:iam::aws:policy/AmazonElasticContainerRegistryPublicReadOnly"
+      }
+      # ----------------------------------------------------------
+
       block_device_mappings = {
         xvda = {
           device_name = "/dev/xvda"
