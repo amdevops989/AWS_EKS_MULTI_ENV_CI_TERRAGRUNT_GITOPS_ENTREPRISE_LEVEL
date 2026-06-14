@@ -8,7 +8,7 @@ locals {
 }
 
 # ===============================#
-# Global Inputs 
+# Global Inputs #
 # ===============================
 inputs = {
   aws_region   = local.aws_region
