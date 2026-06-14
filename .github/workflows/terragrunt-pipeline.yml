@@ -123,7 +123,7 @@ jobs:
             echo "No live components matched the changes."
           fi
 
-      # 4. PR LIFECYCLE: Read-Only Plan execution context
+      # 4. PR LIFECYCLE: Read-Only Plan execution context #
       - name: Terragrunt Plan (Pull Request)
         if: github.event_name == 'pull_request' && steps.diff.outputs.tg_args != ''
         working-directory: ${{ env.TG_WORKING_DIR }}
