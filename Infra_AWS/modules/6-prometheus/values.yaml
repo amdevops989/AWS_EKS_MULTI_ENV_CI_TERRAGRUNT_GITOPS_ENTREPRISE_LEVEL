@@ -1,0 +1,80 @@
+# ------------------------------------
+# PROMETHEUS
+# ------------------------------------
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelector: {}
+    podMonitorSelector: {}
+
+    retention: 12h
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 1Gi
+          storageClassName: gp3-default
+
+    # # Force pods on main MNG
+    # nodeSelector:
+    #   role: main
+
+# ------------------------------------
+# GRAFANA
+# ------------------------------------
+grafana:
+  enabled: true
+  initChownData:
+    enabled: false
+  securityContext:
+    fsGroup: 472
+  adminUser: admin
+  adminPassword: admin
+  service:
+    type: NodePort
+    nodePort: 30080
+
+  persistence:
+    enabled: true
+    type: pvc
+    accessModes:
+      - ReadWriteOnce
+    size: 1Gi
+    storageClassName: gp3-default
+
+  # nodeSelector:
+  #   role: main
+
+# ------------------------------------
+# ALERTMANAGER
+# ------------------------------------
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    configSecret: alertmanager-slack
+
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 1Gi
+          storageClassName: gp3-default
+
+  # nodeSelector:
+  #   role: main
+
+# ------------------------------------
+# Node Exporter & Kube State Metrics
+# ------------------------------------
+kubeStateMetrics:
+  enabled: true
+  # nodeSelector:
+  #   role: main
+
+nodeExporter:
+  enabled: true
+  # nodeSelector:
+  #   role: main
