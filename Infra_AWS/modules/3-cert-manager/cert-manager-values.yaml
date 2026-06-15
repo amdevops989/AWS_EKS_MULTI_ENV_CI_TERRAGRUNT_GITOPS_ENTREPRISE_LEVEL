@@ -1,0 +1,16 @@
+# nodeSelector:
+#   workload: addons   # must match your MNG label
+
+# tolerations:
+#   - key: "CriticalAddonsOnly"
+#     operator: "Equal"
+#     value: "true"
+#     effect: "NoSchedule"
+
+# resources:
+#   requests:
+#     cpu: 100m
+#     memory: 256Mi
+#   limits:
+#     cpu: 300m
+#     memory: 512Mi
