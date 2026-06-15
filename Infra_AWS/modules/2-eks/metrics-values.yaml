@@ -1,0 +1,20 @@
+replicas: 1
+
+args:
+  - --kubelet-insecure-tls
+  - --kubelet-preferred-address-types=InternalIP
+  - --metric-resolution=15s
+
+# Force pod on main node group
+nodeSelector:
+  role: main
+
+# No tolerations needed (main MNG has no taints)
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 200Mi
+  limits:
+    cpu: 200m
+    memory: 300Mi
