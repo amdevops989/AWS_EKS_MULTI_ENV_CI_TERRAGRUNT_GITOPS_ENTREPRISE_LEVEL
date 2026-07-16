@@ -206,7 +206,7 @@ jobs:
       IMAGE_NAME: "crud-frontend"
       REGISTRY_URL: "https://registry.hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/crud-frontend/tags"
       ENV_TARGET: "production"
-      TEST_PORT: "80"
+      TEST_PORT: "8080"
       TEST_CONTAINER_NAME: "frontend-smoke-test"
     steps:
       - name: "Checkout Source Code"
