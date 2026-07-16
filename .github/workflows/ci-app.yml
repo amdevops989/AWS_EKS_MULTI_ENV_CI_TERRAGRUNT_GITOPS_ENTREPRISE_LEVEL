@@ -377,7 +377,7 @@ jobs:
           git add gitops/kustomize/environments/prod/
           
           git commit -m "chore(prod): automated image version bumps [skip ci]" || echo "No manifest changes detected to commit."
-          git push origin main
+          git push origin HEAD
 
 
 
