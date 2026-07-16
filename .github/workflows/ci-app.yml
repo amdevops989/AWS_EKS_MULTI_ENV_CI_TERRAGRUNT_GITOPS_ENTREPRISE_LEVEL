@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout Source Code"
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: gitleaks/gitleaks-action@e0c47f48ef0b9d99c41de05c73850dc22e0607cbeae # v3.0.0 (Node 24 runtime)
         with:
           fetch-depth: 0 # Gitleaks needs full history to scan commits effectively
 
