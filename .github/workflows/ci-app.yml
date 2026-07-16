@@ -8,27 +8,46 @@ on:
       - 'backend/**'
       - 'frontend/**'
 
-# CRUCIAL FOR SINGLE REPO: Gives the built-in GITHUB_TOKEN write access to push changes back
+# SecOps Best Practice: Enforce read-only by default. 
+# We explicitly upgrade permissions on a per-job basis where needed.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  # ==========================================
+  # STAGE 0: FAIL-FAST SECRET DETECTION
+  # ==========================================
+  secrets_detector:
+    name: "Scan for Leaked Secrets"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout Source Code"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0 # Gitleaks needs full history to scan commits effectively
+
+      - name: "Run Gitleaks"
+        uses: gitleaks/gitleaks-action@97e3c53e00be9e74f8c4021d96e63214e20d297a # v2.3.7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   # ==========================================
   # STAGE 1: ANALYZE GIT DIFF CHANGES
   # ==========================================
   changes_detector:
     name: "Detect Modified Services"
     runs-on: ubuntu-latest
+    needs: secrets_detector # Run only if no secrets are leaked
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - name: "Checkout Source Code"
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: "Execute Path Analysis Matcher"
         id: filter
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@de90d04f2fc0a3548068c5c635e76c2780e03ee2 # v3.0.2
         with:
           filters: |
             backend:
@@ -44,8 +63,11 @@ jobs:
   build_backend:
     name: "Backend Core Module"
     runs-on: ubuntu-latest
-    needs: changes_detector
+    needs: [secrets_detector, changes_detector]
     if: needs.changes_detector.outputs.backend == 'true'
+    permissions:
+      contents: read
+      id-token: write # CRUCIAL: Required for Cosign OIDC Keyless signing
     outputs:
       NEW_TAG: ${{ env.NEW_CALCULATED_VERSION }}
     env:
@@ -57,15 +79,43 @@ jobs:
       TEST_CONTAINER_NAME: "backend-smoke-test"
     steps:
       - name: "Checkout Source Code"
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0 # SonarQube needs git history for blame assignment
 
+      # ------------------------------------------
+      # GATED: SONARQUBE STATIC ANALYSIS
+      # ------------------------------------------
+      - name: "SonarQube Scan"
+        uses: sonarsource/sonarqube-scan-action@0303b6b815340f1a238698bf992e77b4010a3014 # v3.1.0
+        with:
+          projectBaseDir: backend
+          args: >
+            -Dsonar.projectKey=my-monorepo-backend
+            -Dsonar.projectName="Backend Service"
+            -Dsonar.sources=.
+            -Dsonar.exclusions=**/test/**,**/node_modules/**
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      - name: "SonarQube Quality Gate"
+        uses: sonarsource/sonarqube-quality-gate-action@9016d4c5c24e628469d45e43f11559ed5a266a2b # v1.1.0
+        with:
+          projectBaseDir: backend
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      # ------------------------------------------
+      # BUILD AND TEST
+      # ------------------------------------------
       - name: "Authenticate to Docker Hub"
-        uses: docker/login-action@v3
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: "Compile, Test, Scan & Push Backend Layer"
+      - name: "Compile & Smoke Test Backend"
         run: |
           cd backend
           
@@ -110,27 +160,50 @@ jobs:
             docker rm -f "$TEST_CONTAINER_NAME" &> /dev/null
             exit 1
           fi
-          
-          echo "🛡️ [SCAN] Scanning container layers with Trivy..."
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-          if ! trivy image --exit-code 1 --severity CRITICAL "$FULL_IMAGE_TAG"; then
-            echo "❌ [SCAN FAILED] Critical vulnerabilities detected!" >&2
-            exit 1
-          fi
-          
+
+      # ------------------------------------------
+      # POST-TEST SECURITY SCRUTINY
+      # ------------------------------------------
+      - name: "Security Scan (Trivy)"
+        uses: aquasecurity/trivy-action@18f257c6e2a59c41de05c73850dc22e0607cbeae # v0.23.0
+        with:
+          image-ref: "${{ env.DOCKER_USER }}/${{ env.IMAGE_NAME }}:${{ env.NEW_CALCULATED_VERSION }}"
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL'
+
+      - name: "Push Backend Layers"
+        run: |
           echo "🏷️ Appending 'latest' marker..."
-          docker tag "$FULL_IMAGE_TAG" "${DOCKER_USER}/${IMAGE_NAME}:latest"
+          docker tag "${DOCKER_USER}/${IMAGE_NAME}:${{ env.NEW_CALCULATED_VERSION }}" "${DOCKER_USER}/${IMAGE_NAME}:latest"
           
           echo "📤 Syncing layers to Docker Hub registry..."
-          docker push "$FULL_IMAGE_TAG"
+          docker push "${DOCKER_USER}/${IMAGE_NAME}:${{ env.NEW_CALCULATED_VERSION }}"
           docker push "${DOCKER_USER}/${IMAGE_NAME}:latest"
+
+      # ------------------------------------------
+      # GATED: COSIGN IMAGES SIGNING (KEYLESS)
+      # ------------------------------------------
+      - name: "Install Cosign"
+        uses: sigstore/cosign-installer@d7d6bc7722e3dec83a4c80ed77dc0a8a0f9486c4 # v3.8.1
+
+      - name: "Sign Container Image"
+        run: |
+          echo "✍️ Cryptographically signing pushed images..."
+          cosign sign --yes "${DOCKER_USER}/${IMAGE_NAME}:${{ env.NEW_CALCULATED_VERSION }}"
+          cosign sign --yes "${DOCKER_USER}/${IMAGE_NAME}:latest"
 
   # --- FRONTEND PIPELINE ---
   build_frontend:
     name: "Frontend UI Module"
     runs-on: ubuntu-latest
-    needs: changes_detector
+    needs: [secrets_detector, changes_detector]
     if: needs.changes_detector.outputs.frontend == 'true'
+    permissions:
+      contents: read
+      id-token: write # CRUCIAL: Required for Cosign OIDC Keyless signing
     outputs:
       NEW_TAG: ${{ env.NEW_CALCULATED_VERSION }}
     env:
@@ -142,15 +215,43 @@ jobs:
       TEST_CONTAINER_NAME: "frontend-smoke-test"
     steps:
       - name: "Checkout Source Code"
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
 
+      # ------------------------------------------
+      # GATED: SONARQUBE STATIC ANALYSIS
+      # ------------------------------------------
+      - name: "SonarQube Scan"
+        uses: sonarsource/sonarqube-scan-action@0303b6b815340f1a238698bf992e77b4010a3014 # v3.1.0
+        with:
+          projectBaseDir: frontend
+          args: >
+            -Dsonar.projectKey=my-monorepo-frontend
+            -Dsonar.projectName="Frontend Service"
+            -Dsonar.sources=.
+            -Dsonar.exclusions=**/test/**,**/node_modules/**
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      - name: "SonarQube Quality Gate"
+        uses: sonarsource/sonarqube-quality-gate-action@9016d4c5c24e628469d45e43f11559ed5a266a2b # v1.1.0
+        with:
+          projectBaseDir: frontend
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      # ------------------------------------------
+      # BUILD AND TEST
+      # ------------------------------------------
       - name: "Authenticate to Docker Hub"
-        uses: docker/login-action@v3
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: "Compile, Test, Scan & Push Frontend Layer"
+      - name: "Compile & Smoke Test Frontend"
         run: |
           cd frontend
           
@@ -195,21 +296,42 @@ jobs:
             docker rm -f "$TEST_CONTAINER_NAME" &> /dev/null
             exit 1
           fi
-          
-          echo "🛡️ [SCAN] Scanning container layers with Trivy..."
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-          if ! trivy image --exit-code 1 --severity CRITICAL "$FULL_IMAGE_TAG"; then
-            echo "❌ [SCAN FAILED] Critical vulnerabilities detected!" >&2
-            exit 1
-          fi
-          
+
+      # ------------------------------------------
+      # POST-TEST SECURITY SCRUTINY
+      # ------------------------------------------
+      - name: "Security Scan (Trivy)"
+        uses: aquasecurity/trivy-action@18f257c6e2a59c41de05c73850dc22e0607cbeae # v0.23.0
+        with:
+          image-ref: "${{ env.DOCKER_USER }}/${{ env.IMAGE_NAME }}:${{ env.NEW_CALCULATED_VERSION }}"
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL'
+
+      - name: "Push Frontend Layers"
+        run: |
           echo "🏷️ Appending 'latest' marker..."
-          docker tag "$FULL_IMAGE_TAG" "${DOCKER_USER}/${IMAGE_NAME}:latest"
+          docker tag "${DOCKER_USER}/${IMAGE_NAME}:${{ env.NEW_CALCULATED_VERSION }}" "${DOCKER_USER}/${IMAGE_NAME}:latest"
           
           echo "📤 Syncing layers to Docker Hub registry..."
-          docker push "$FULL_IMAGE_TAG"
+          docker push "${DOCKER_USER}/${IMAGE_NAME}:${{ env.NEW_CALCULATED_VERSION }}"
           docker push "${DOCKER_USER}/${IMAGE_NAME}:latest"
-# ==========================================
+
+      # ------------------------------------------
+      # GATED: COSIGN IMAGES SIGNING (KEYLESS)
+      # ------------------------------------------
+      - name: "Install Cosign"
+        uses: sigstore/cosign-installer@d7d6bc7722e3dec83a4c80ed77dc0a8a0f9486c4 # v3.8.1
+
+      - name: "Sign Container Image"
+        run: |
+          echo "✍️ Cryptographically signing pushed images..."
+          cosign sign --yes "${DOCKER_USER}/${IMAGE_NAME}:${{ env.NEW_CALCULATED_VERSION }}"
+          cosign sign --yes "${DOCKER_USER}/${IMAGE_NAME}:latest"
+
+  # ==========================================
   # STAGE 3: GITOPS WRITE-BACK (SAME REPO)
   # ==========================================
   gitops_update:
@@ -217,20 +339,21 @@ jobs:
     runs-on: ubuntu-latest
     needs: [changes_detector, build_backend, build_frontend]
     if: always() && (needs.build_backend.result == 'success' || needs.build_frontend.result == 'success')
-    
-    # Define environment path variables for the entire job
+    permissions:
+      contents: write # Explicitly required write privileges for Git configuration pushing
+
     env:
       BACKEND_KUSTOMIZE_DIR: "gitops/kustomize/environments/prod/backend"
       FRONTEND_KUSTOMIZE_DIR: "gitops/kustomize/environments/prod/frontend"
       
     steps:
       - name: "Checkout Repository"
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Install Kustomize"
-        uses: imranismail/setup-kustomize@v2
+        uses: imranismail/setup-kustomize@130fe9b3637e8c3be3927d7e6df6eb5347ee9f14 # v2.1.0
 
       - name: "Apply Tag Changes via Kustomize"
         run: |
@@ -254,13 +377,11 @@ jobs:
 
       - name: "Commit and Push to Main"
         run: |
-          # Jump back to root folder context to execute the git commit neatly
           cd $GITHUB_WORKSPACE
           
           git config --global user.name "GitOps-CI-Bot"
           git config --global user.email "ci-bot@company.com"
           
-          # Stage tracking variations across both directory locations
           git add gitops/kustomize/environments/prod/
           
           git commit -m "chore(prod): automated image version bumps [skip ci]" || echo "No manifest changes detected to commit."
