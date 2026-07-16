@@ -335,9 +335,9 @@ jobs:
       contents: write # Explicitly required write privileges for Git configuration pushing
 
     env:
-      BACKEND_KUSTOMIZE_DIR: "gitops/kustomize/environments/prod/backend"
-      FRONTEND_KUSTOMIZE_DIR: "gitops/kustomize/environments/prod/frontend"
-      
+      BACKEND_KUSTOMIZE_DIR: "gitops/kustomize/environments/dev/backend"
+      FRONTEND_KUSTOMIZE_DIR: "gitops/kustomize/environments/dev/frontend"
+
     steps:
       - name: "Checkout Repository"
         uses: actions/checkout@v4
