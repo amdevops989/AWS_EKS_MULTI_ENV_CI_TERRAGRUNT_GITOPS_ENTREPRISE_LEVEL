@@ -83,10 +83,11 @@ jobs:
         with:
           fetch-depth: 0 # SonarQube needs git history for blame assignment
 
+ 
       # ------------------------------------------
       # GATED: SONARQUBE STATIC ANALYSIS
       # ------------------------------------------
-      - name: "SonarQube Scan"
+      - name: "SonarQube Scan & Gate"
         uses: sonarsource/sonarqube-scan-action@v8.2.1
         with:
           projectBaseDir: backend
@@ -96,17 +97,10 @@ jobs:
             -Dsonar.projectName="Backend Service"
             -Dsonar.sources=.
             -Dsonar.exclusions=**/test/**,**/node_modules/**
+            -Dsonar.qualitygate.wait=true # <--- THIS IS YOUR QUALITY GATE
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
-
-      - name: "SonarQube Quality Gate"
-        uses: sonarsource/sonarqube-quality-gate-action@v1.2.0
-        with:
-          projectBaseDir: backend
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
       # ------------------------------------------
       # BUILD AND TEST
       # ------------------------------------------
@@ -234,16 +228,11 @@ jobs:
             -Dsonar.projectName="Frontend Service"
             -Dsonar.sources=.
             -Dsonar.exclusions=**/test/**,**/node_modules/**
+            -Dsonar.qualitygate.wait=true
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
-
-      - name: "SonarQube Quality Gate"
-        uses: sonarsource/sonarqube-quality-gate-action@v1.2.0 # v1.2.0
-        with:
-          projectBaseDir: frontend
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+ 
 
       # ------------------------------------------
       # BUILD AND TEST
