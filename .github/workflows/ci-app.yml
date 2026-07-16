@@ -374,9 +374,9 @@ jobs:
           git config --global user.name "GitOps-CI-Bot"
           git config --global user.email "ci-bot@company.com"
           
-          git add gitops/kustomize/environments/prod/
+          git add gitops/kustomize/environments/dev/
           
-          git commit -m "chore(prod): automated image version bumps [skip ci]" || echo "No manifest changes detected to commit."
+          git commit -m "chore(dev): automated image version bumps [skip ci]" || echo "No manifest changes detected to commit."
           git push origin HEAD
 
 
