@@ -91,6 +91,7 @@ jobs:
         with:
           projectBaseDir: backend
           args: >
+            -Dsonar.organization=amdevops989
             -Dsonar.projectKey=my-monorepo-backend
             -Dsonar.projectName="Backend Service"
             -Dsonar.sources=.
@@ -219,14 +220,16 @@ jobs:
         with:
           fetch-depth: 0
 
+
       # ------------------------------------------
       # GATED: SONARQUBE STATIC ANALYSIS
       # ------------------------------------------
       - name: "SonarQube Scan"
-        uses: sonarsource/sonarqube-scan-action@v8.2.1 # v8.2.1
+        uses: sonarsource/sonarqube-scan-action@v8.2.1
         with:
           projectBaseDir: frontend
           args: >
+            -Dsonar.organization=amdevops989
             -Dsonar.projectKey=my-monorepo-frontend
             -Dsonar.projectName="Frontend Service"
             -Dsonar.sources=.
