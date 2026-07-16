@@ -216,6 +216,7 @@ jobs:
     steps:
       - name: "Checkout Source Code"
         uses: actions/checkout@v4
+        with:
           fetch-depth: 0
 
       # ------------------------------------------
