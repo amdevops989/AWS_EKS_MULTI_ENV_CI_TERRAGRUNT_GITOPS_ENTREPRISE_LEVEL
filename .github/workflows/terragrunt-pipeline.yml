@@ -87,7 +87,7 @@ jobs:
         with:
           directory: ${{ env.TG_WORKING_DIR }}
           framework: terraform # Forces Checkov to focus solely on our Terraform files
-          # soft_fail: true # Uncomment this during transition periods to prevent failing the pipeline
+          ## soft_fail: true # Uncomment this during transition periods to prevent failing the pipeline
 
       # 3. DUAL ENGINE DIFF LOGIC: Seamless switching between PR contexts and Direct Branch Pushes
       - name: Determine Targeted Changes
