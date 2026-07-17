@@ -73,6 +73,22 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
+      # 2. STATIC ANALYSIS & SECURITY SCANNING (FAIL-FAST POLICY GATE)
+      # Run tfsec directly on the active environment's configuration files
+      - name: Run tfsec Security Scan
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: ${{ env.TG_WORKING_DIR }}
+          # soft_fail: true # Uncomment this if you want warnings instead of outright pipeline failures
+
+      # Run Checkov against the same environment directory
+      - name: Run Checkov Security Scan
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: ${{ env.TG_WORKING_DIR }}
+          framework: terraform # Forces Checkov to focus solely on our Terraform files
+          # soft_fail: true # Uncomment this during transition periods to prevent failing the pipeline
+
       # 3. DUAL ENGINE DIFF LOGIC: Seamless switching between PR contexts and Direct Branch Pushes
       - name: Determine Targeted Changes
         id: diff
