@@ -1,6 +1,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: production
+namespace: dev
 
 # Tells Kustomize where your local charts live relative to this file
 helmGlobals:
@@ -8,7 +8,7 @@ helmGlobals:
 
 helmCharts:
 - name: crud-frontend
-  releaseName: frontend-prod
+  releaseName: frontend-dev
   valuesInline:
     image:
       repository: devopsflow999/crud-frontend
@@ -19,4 +19,4 @@ helmCharts:
 images:
 - name: devopsflow999/crud-frontend
   newName: devopsflow999/crud-frontend
-  newTag: v1.0.11
+  newTag: v1.0.17
