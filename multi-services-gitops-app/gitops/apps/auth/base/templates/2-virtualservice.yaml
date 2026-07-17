@@ -1,0 +1,68 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ .Chart.Name }}-vsvc
+  namespace: {{ .Values.namespace | default "demo" }}
+spec:
+  hosts:
+    - "{{ .Values.istio.host | default "api.travelersources.com" }}"
+  gateways:
+    - "{{ .Values.istio.gateway | default "api-gateway" }}"
+  http:
+
+    # Canary route
+    - name: {{ .Chart.Name }}-canary-debug
+      match:
+        - uri:
+            prefix: "/auth/"  ## {{ .Chart.Name }}
+          headers:
+            x-canary:
+              exact: "true"
+        - uri:
+            exact: "/auth"
+          headers:
+            x-canary:
+              exact: "true"
+      rewrite:
+        uri: "/"
+      route:
+        - destination:
+            host: {{ .Chart.Name }}-canary
+            port:
+              number: {{ .Values.service.httpPort | default 3002 }}
+          weight: 100
+      # corsPolicy:
+      #   allowOrigins:
+      #     - exact: "{{ .Values.frontendUrl }}"
+      #   allowMethods: ["GET","POST","PUT","DELETE","OPTIONS"]
+      #   allowHeaders: ["*"]
+      #   allowCredentials: true
+      #   maxAge: "1h"
+
+    # Stable route
+    - name: primary
+      match:
+        - uri:
+            prefix: "/auth/"
+        - uri:
+            exact: "/auth"
+      rewrite:
+        uri: "/"
+      route:
+        - destination:
+            host: {{ .Chart.Name }}-stable
+            port:
+              number: {{ .Values.service.httpPort | default 3002 }}
+          weight: 100
+        - destination:
+            host: {{ .Chart.Name }}-canary
+            port:
+              number: {{ .Values.service.httpPort | default 3002 }}
+          weight: 0
+      # corsPolicy:
+      #   allowOrigins:
+      #     - exact: "{{ .Values.frontendUrl }}"
+      #   allowMethods: ["GET","POST","PUT","DELETE","OPTIONS"]
+      #   allowHeaders: ["*"]
+      #   allowCredentials: true
+      #   maxAge: "1h"

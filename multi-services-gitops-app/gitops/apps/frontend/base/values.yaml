@@ -1,0 +1,74 @@
+# Base/default values for all environments
+
+namespace: travelersources      # default namespace (prod)
+replicaCount: 2
+revisionHistoryLimit: 2
+
+image:
+  repository: devopsflow999/frontend
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+service:
+  port: 80
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# Environment variables (if not using envFromSecret)
+env:
+  VITE_STRIPE_KEY: ""
+
+# Or use a secret for env
+envFromSecret: frontend-secrets
+
+# Istio Gateway settings
+istio:
+  host: travelersources.com
+  gateway: frontend-gateway
+  tls:
+    enabled: true
+    secretName: api-travelersources-tls-secret
+
+# Rollout strategy
+strategy:
+  scaleDownDelaySeconds: 60
+  steps:
+    - weight: 10
+      pause: {}
+    - weight: 20
+      pause: {duration: 20s}
+    - weight: 30
+      pause: {duration: 20s}
+    - weight: 40
+      pause: {duration: 20s}
+    - weight: 50
+      pause: {duration: 20s}
+    - weight: 60
+      pause: {duration: 20s}
+    - weight: 70
+      pause: {duration: 20s}
+    - weight: 80
+      pause: {duration: 20s}
+    - weight: 90
+      pause: {duration: 20s}
+
+hpa:
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilization: 60
+  
+pdb:
+  minAvailable: 1
+
+monitoringNamespace: monitoring
+prometheusRule:
+  release: kube-prom-stack
+
+prometheus:
+  address: http://kube-prom-stack-kube-prome-prometheus.monitoring:9090

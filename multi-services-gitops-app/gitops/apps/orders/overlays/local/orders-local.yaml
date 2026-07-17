@@ -1,0 +1,508 @@
+---
+# Source: orders/templates/8-pdb.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: orders-pdb
+  namespace: demo
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: orders
+---
+# Source: orders/templates/5-configMap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orders-config
+  namespace: demo
+data:
+  PGUSER: "appuser"
+  PGHOST: "my-postgresql.postgres.svc.cluster.local"
+  PGDATABASE: "mv100db"
+  PGPORT: "5432"
+
+  REDIS_URL: "redis-master.redis.svc.cluster.local:6379"
+
+  KAFKA_BROKERS: "kafka.kafka.svc.cluster.local:9092"
+  KAFKA_CLIENT_ID: "products-service"
+  KAFKA_TOPIC_PRODUCTS: "mv100db.public.products"
+  KAFKA_TOPIC_USERS: "mv100db.public.users"
+  KAFKA_TOPIC_ORDERS: "mv100db.public.orders"
+  KAFKA_TOPIC_PAYMENTS: "mv100db.public.payments"
+
+  LOG_LEVEL: "info"
+  PORT: "3004"
+  FRONTEND_URL: "http://frontend.localdev.me"
+  OTEL_PROM_PORT: "9467"
+---
+# Source: orders/templates/6-dashboard-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orders-stable-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    release: kube-prom-stack
+data:
+  orders-stable.json: |
+    {
+      "title": "orders-Stable DevOps Dashboard",
+      "schemaVersion": 36,
+      "version": 1,
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": "-- Grafana --",
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "panels": [
+        {
+          "type": "gauge",
+          "title": "Success Rate",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "(sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"orders-stable\",response_code=~\"2..\"}[5m])) / sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"orders-stable\"}[5m]))) * 100",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "4xx Error Rate",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "(sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"orders-stable\",response_code=~\"4..\"}[5m])) / sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"orders-stable\"}[5m]))) * 100",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "5xx Error Rate",
+          "gridPos": { "x": 0, "y": 6, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "(sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"orders-stable\",response_code=~\"5..\"}[5m])) / sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"orders-stable\"}[5m]))) * 100",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "P95 Latency (ms)",
+          "gridPos": { "x": 12, "y": 6, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(istio_request_duration_milliseconds_bucket{reporter=\"source\",destination_service_name=\"orders-stable\"}[5m])) by (le))",
+              "refId": "D"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "ms" } }
+        },
+        {
+          "type": "gauge",
+          "title": "CPU Usage (%)",
+          "gridPos": { "x": 0, "y": 12, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "100 * sum(rate(container_cpu_usage_seconds_total{namespace=\"demo\",pod=~\"orders-.*\",container!=\"POD\"}[2m])) / sum(kube_pod_container_resource_limits{namespace=\"demo\",pod=~\"orders-.*\",container!=\"POD\",resource=\"cpu\"})",
+              "refId": "E"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "Memory Usage (%)",
+          "gridPos": { "x": 12, "y": 12, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "100 * sum(container_memory_working_set_bytes{namespace=\"demo\",pod=~\"orders-.*\",container!=\"POD\"}) / sum(kube_pod_container_resource_limits{namespace=\"demo\",pod=~\"orders-.*\",container!=\"POD\",resource=\"memory\"})",
+              "refId": "F"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+
+        {
+          "type": "stat",
+          "title": "Orders Created / min",
+          "gridPos": { "x": 0, "y": 18, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(rate(orders_created_total[5m])) * 60", "refId": "G" }]
+        },
+        {
+          "type": "stat",
+          "title": "Orders Paid / min",
+          "gridPos": { "x": 8, "y": 18, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(rate(orders_paid_total[5m])) * 60", "refId": "H" }]
+        },
+        {
+          "type": "stat",
+          "title": "Orders Paid Total",
+          "gridPos": { "x": 16, "y": 18, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(orders_paid_total)", "refId": "I" }]
+        },
+        {
+          "type": "stat",
+          "title": "Order Creation Failures / min",
+          "gridPos": { "x": 0, "y": 23, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(rate(orders_creation_failures_total[5m])) * 60", "refId": "J" }]
+        },
+        {
+          "type": "stat",
+          "title": "Payment Failures / min",
+          "gridPos": { "x": 8, "y": 23, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(rate(orders_payment_failures_total[5m])) * 60", "refId": "K" }]
+        },
+        {
+          "type": "stat",
+          "title": "Revenue / min",
+          "gridPos": { "x": 16, "y": 23, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(rate(orders_revenue_total[5m]))", "refId": "L" }],
+          "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
+        },
+        {
+          "type": "graph",
+          "title": "Order Amount P95",
+          "gridPos": { "x": 0, "y": 28, "w": 24, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "histogram_quantile(0.95,sum(rate(orders_amount_bucket[5m])) by (le))", "refId": "M" }]
+        }
+      ]
+    }
+---
+# Source: orders/templates/1-services.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders-canary
+  namespace: demo
+spec:
+  selector:
+    app: orders
+  ports:
+    - protocol: TCP
+      port: 3004
+      targetPort: 3004
+      name: http
+---
+# Source: orders/templates/1-services.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders-stable
+  namespace: demo
+spec:
+  selector:
+    app: orders
+  ports:
+    - protocol: TCP
+      port: 3004
+      targetPort: 3004
+      name: http
+---
+# Source: orders/templates/4-serviceMetrics.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders-metrics
+  namespace: demo
+  labels:
+    app: orders
+    metrics: "true"
+spec:
+  selector:
+    app: orders
+  ports:
+    - name: metrics
+      port: 9467
+      targetPort: 9467
+      protocol: TCP
+---
+# Source: orders/templates/7-hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: orders-hpa
+  namespace: demo
+spec:
+  scaleTargetRef:
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
+    name: orders
+
+  minReplicas: 1
+  maxReplicas: 10
+
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+---
+# Source: orders/templates/10-prometheus-rules.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: orders-stable-rules
+  namespace: monitoring
+  labels:
+    release: kube-prom-stack
+spec:
+  groups:
+  - name: istio-frontend-alerts
+    rules:
+
+    # ----------------------------------------------------
+    # 1. Stable Success Rate Alert (<95%)
+    # ----------------------------------------------------
+    - alert: IstioFrontendStableLowSuccessRate
+      expr: |
+        (sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="orders-stable",
+            namespace="demo"
+        }[5m]))
+        /
+        sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="orders-stable",
+            namespace="demo"
+        }[5m]))) * 100 < 95
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "orders-stable service success rate is low"
+        description: "Success rate for orders-stable dropped below 95%."
+
+    # ----------------------------------------------------
+    # 2. Stable 5xx Error Rate Alert (>1%)
+    # ----------------------------------------------------
+    - alert: IstioordersStableHigh5xxRate
+      expr: |
+        sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="orders-stable",
+            response_code=~"5..",
+            namespace="demo"
+        }[5m]))
+        /
+        sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="orders-stable",
+            namespace="demo"
+        }[5m])) > 0.01
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "orders-stable service 5xx error rate is too high"
+        description: "More than 1% of requests to orders-stable are 5xx errors."
+
+    # ----------------------------------------------------
+    # 3. Stable P95 Latency Alert (>500ms)
+    # ----------------------------------------------------
+    - alert: IstioordersStableHighP95Latency
+      expr: |
+        histogram_quantile(
+          0.95,
+          sum(rate(istio_request_duration_milliseconds_bucket{
+              reporter="destination",
+              destination_service_name="orders-stable",
+              namespace="demo"
+          }[5m])) by (le)
+        ) > 500
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "orders-stable service P95 latency is high"
+        description: "P95 latency for orders-stable exceeded 500ms."
+---
+# Source: orders/templates/11-rollout.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: orders
+  namespace: demo
+spec:
+  replicas: 1
+  revisionHistoryLimit: 1
+
+  selector:
+    matchLabels:
+      app: orders
+
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "true"
+      labels:
+        app: orders
+        istio: monitor
+        metrics: "true"   ## to let prometheus scrap metrics in mtls mode 
+
+    spec:
+      containers:
+        - name: orders
+          image: "devopsflow999/orders:main-v0.1.1"
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: orders-config
+            - secretRef:
+                name: demo-secrets
+
+          ports:
+            - name: http
+              containerPort: 3004
+              protocol: TCP
+            - name: metrics
+              containerPort: 9467
+              protocol: TCP
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+
+  strategy:
+      canary:
+        stableService: orders-stable
+        canaryService: orders-canary
+
+        trafficRouting:
+          istio:
+            virtualService:
+              name: orders-vsvc
+              routes:
+                - primary
+        steps:
+          - setWeight: 10
+          - setWeight: 20
+          - pause:
+              duration: 20s
+          - setWeight: 30
+          - pause:
+              duration: 20s
+          - setWeight: 40
+          - pause:
+              duration: 20s
+          - setWeight: 50
+          - pause:
+              duration: 20s
+          - setWeight: 60
+          - pause:
+              duration: 20s
+          - setWeight: 70
+          - pause:
+              duration: 20s
+          - setWeight: 80
+          - pause:
+              duration: 20s
+          - setWeight: 90
+          - pause:
+              duration: 20s
+---
+# Source: orders/templates/2-virtualservice.yaml
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: orders-vsvc
+  namespace: demo
+spec:
+  hosts:
+    - "api.localdev.me"
+  gateways:
+    - "api-gateway"
+  http:
+
+    # Canary route
+    - name: orders-canary-debug
+      match:
+        - uri:
+            prefix: "/orders/"
+          headers:
+            x-canary:
+              exact: "true"
+        - uri:
+            prefix: "/orders"
+          headers:
+            x-canary:
+              exact: "true"
+      route:
+        - destination:
+            host: orders-canary
+            port:
+              number: 3004
+          weight: 100
+      # corsPolicy:
+      #   allowOrigins:
+      #     - exact: "http://frontend.localdev.me"
+      #   allowMethods: ["GET","POST","PUT","DELETE","OPTIONS"]
+      #   allowHeaders: ["*"]
+      #   allowCredentials: true
+      #   maxAge: "1h"
+
+    # Stable route
+    - name: primary
+      match:
+        - uri:
+            prefix: "/orders/"
+        - uri:
+            exact: "/orders"
+        - uri:
+            prefix: "/orders"
+        - uri:
+            exact: "/orders"
+      route:
+        - destination:
+            host: orders-stable
+            port:
+              number: 3004
+          weight: 100
+        - destination:
+            host: orders-canary
+            port:
+              number: 3004
+          weight: 0
+      # corsPolicy:
+      #   allowOrigins:
+      #     - exact: "http://frontend.localdev.me"
+      #   allowMethods: ["GET","POST","PUT","DELETE","OPTIONS"]
+      #   allowHeaders: ["*"]
+      #   allowCredentials: true
+      #   maxAge: "1h"

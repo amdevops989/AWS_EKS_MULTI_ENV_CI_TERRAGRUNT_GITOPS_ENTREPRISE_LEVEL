@@ -1,0 +1,171 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-stable-dashboard
+  namespace: {{ .Values.monitoringNamespace | default "monitoring" }}
+  labels:
+    grafana_dashboard: "1"
+    release: kube-prom-stack
+data:
+  {{ .Chart.Name }}-stable.json: |-
+    {
+      "title": "{{ .Chart.Name }}-Stable DevOps Dashboard",
+      "schemaVersion": 36,
+      "version": 1,
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": "-- Grafana --",
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "panels": [
+        {
+          "type": "gauge",
+          "title": "Success Rate",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "(sum(rate(istio_requests_total{reporter='source',destination_service_name='{{ .Chart.Name }}-stable',response_code=~'2..'}[5m])) / sum(rate(istio_requests_total{reporter='source',destination_service_name='{{ .Chart.Name }}-stable'}[5m]))) * 100",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "4xx Error Rate",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "(sum(rate(istio_requests_total{reporter='source',destination_service_name='{{ .Chart.Name }}-stable',response_code=~'4..'}[5m])) / sum(rate(istio_requests_total{reporter='source',destination_service_name='{{ .Chart.Name }}-stable'}[5m]))) * 100",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "5xx Error Rate",
+          "gridPos": { "x": 0, "y": 6, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "(sum(rate(istio_requests_total{reporter='source',destination_service_name='{{ .Chart.Name }}-stable',response_code=~'5..'}[5m])) / sum(rate(istio_requests_total{reporter='source',destination_service_name='{{ .Chart.Name }}-stable'}[5m]))) * 100",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "P95 Latency (ms)",
+          "gridPos": { "x": 12, "y": 6, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(istio_request_duration_milliseconds_bucket{reporter='source',destination_service_name='{{ .Chart.Name }}-stable'}[5m])) by (le))",
+              "refId": "D"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "ms" } }
+        },
+        {
+          "type": "gauge",
+          "title": "CPU Usage (%)",
+          "gridPos": { "x": 0, "y": 12, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "100 * sum(rate(container_cpu_usage_seconds_total{namespace='{{ .Values.namespace }}',pod=~'{{ .Chart.Name }}-.*',container!=\"POD\"}[2m])) / sum(kube_pod_container_resource_limits{namespace='{{ .Values.namespace }}',pod=~'{{ .Chart.Name }}-.*',container!=\"POD\",resource='cpu'})",
+              "refId": "E"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "Memory Usage (%)",
+          "gridPos": { "x": 12, "y": 12, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "100 * sum(container_memory_working_set_bytes{namespace='{{ .Values.namespace }}',pod=~'{{ .Chart.Name }}-.*',container!=\"POD\"}) / sum(kube_pod_container_resource_limits{namespace='{{ .Values.namespace }}',pod=~'{{ .Chart.Name }}-.*',container!=\"POD\",resource='memory'})",
+              "refId": "F"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "stat",
+          "title": "Products Created / min",
+          "gridPos": { "x": 0, "y": 18, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "rate(catalog_products_created_total[5m]) * 60", "refId": "G" }]
+        },
+        {
+          "type": "stat",
+          "title": "Products Updated / min",
+          "gridPos": { "x": 8, "y": 18, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "rate(catalog_products_updated_total[5m]) * 60", "refId": "H" }]
+        },
+        {
+          "type": "stat",
+          "title": "Products Deleted / min",
+          "gridPos": { "x": 16, "y": 18, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "rate(catalog_products_deleted_total[5m]) * 60", "refId": "I" }]
+        },
+        {
+          "type": "stat",
+          "title": "Cache Hits / min",
+          "gridPos": { "x": 0, "y": 23, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(rate(catalog_cache_hits_total[5m])) * 60", "refId": "J" }]
+        },
+        {
+          "type": "stat",
+          "title": "Cache Misses / min",
+          "gridPos": { "x": 8, "y": 23, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(rate(catalog_cache_misses_total[5m])) * 60", "refId": "K" }]
+        },
+        {
+          "type": "stat",
+          "title": "Kafka Publish Failures / min",
+          "gridPos": { "x": 16, "y": 23, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(rate(catalog_kafka_publish_failures_total[5m])) * 60", "refId": "L" }]
+        },
+        {
+          "type": "stat",
+          "title": "Total Products Created",
+          "gridPos": { "x": 0, "y": 28, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(catalog_products_created_total)", "refId": "M" }]
+        },
+        {
+          "type": "stat",
+          "title": "Total Products Updated",
+          "gridPos": { "x": 8, "y": 28, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(catalog_products_updated_total)", "refId": "N" }]
+        },
+        {
+          "type": "stat",
+          "title": "Total Products Deleted",
+          "gridPos": { "x": 16, "y": 28, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(catalog_products_deleted_total)", "refId": "O" }]
+        }
+      ]
+    }

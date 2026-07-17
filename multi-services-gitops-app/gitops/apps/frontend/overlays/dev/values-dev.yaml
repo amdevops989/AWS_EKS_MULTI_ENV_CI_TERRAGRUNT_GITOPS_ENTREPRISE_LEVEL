@@ -1,0 +1,56 @@
+# Dev-specific values
+namespace: dev
+monitoringNamespace: monitoring
+
+replicaCount: 2
+image:
+  repository: devopsflow999/frontend
+  tag: "dev-v0.1.27"
+  pullPolicy: IfNotPresent
+
+service:
+  port: 80
+
+istio:
+  host: dev.travelersources.com
+  gateway: frontend-gateway
+  tls:
+    enabled: true
+    secretName: api-travelersources-tls-secret
+
+env:
+  VITE_STRIPE_KEY: "" # Will be set from frontend-secrets
+
+hpa:
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilization: 60
+  
+pdb:
+  minAvailable: 1
+
+monitoringNamespace: monitoring
+prometheusRule:
+  release: kube-prom-stack
+
+strategy:
+  scaleDownDelaySeconds: 60
+  steps:
+    - weight: 10
+      pause: {}          # pause indefinitely
+    - weight: 20
+      pause: {duration: 20s}
+    - weight: 30
+      pause: {duration: 20s}
+    - weight: 40
+      pause: {duration: 20s}
+    - weight: 50
+      pause: {duration: 20s}
+    - weight: 60
+      pause: {duration: 20s}
+    - weight: 70
+      pause: {duration: 20s}
+    - weight: 80
+      pause: {duration: 20s}
+    - weight: 90
+      pause: {duration: 20s}

@@ -1,0 +1,7 @@
+# values-kb.yaml: Configuration for Kibana
+# Point it to the Elasticsearch cluster we just deployed
+elasticsearchRef:
+  name: elasticsearch
+# Expose the service outside the cluster IP
+service:
+  type: NodePort

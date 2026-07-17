@@ -1,0 +1,94 @@
+# values-ls.yaml: Cleaned up configuration to kill internal fallback monitoring
+replicas: 1
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "512Mi"
+  limits:
+    cpu: "1000m"
+    memory: "1Gi"
+
+# --- FORCE DISABLE INTERNAL MONITORING FALLBACKS ---
+logstashConfig:
+  logstash.yml: |
+    http.host: "0.0.0.0"
+    xpack.monitoring.enabled: false
+
+# values-ls.yaml
+logstashPipeline:
+  logstash.conf: |
+    input {
+      beats {
+        port => 5044
+      }
+      http {
+        port => 8080
+        codec => json
+      }
+    }
+
+    filter {
+      # 1. JSON Fallback
+      if [message] =~ /^\{.*/ {
+        json { source => "message" }
+      }
+      
+      # 2. Multi-Pattern Engine: Parse Nginx, App, or K8s logs
+      grok {
+        match => { 
+          "message" => [
+            # Pattern A: Standard Nginx / Apache Access Logs
+            "%{COMBINEDAPACHELOG}",
+            
+            # Pattern B: Your Demo App Log Format
+            "^%{TIMESTAMP_ISO8601:log_timestamp}\s+%{WORD:log_level}\s+%{GREEDYDATA:clean_message}",
+            
+            # Pattern C: K8s Go Components
+            "^(?<log_level>[IWEF])%{INT:grok_timestamp_short}\s+%{NOTSPACE:thread_id}\s+%{NOTSPACE:source_file}:%{NUMBER:line_number}\]\s+%{GREEDYDATA:clean_message}"
+          ]
+        }
+        tag_on_failure => ["_grok_parse_skipped"]
+      }
+
+      # 3. Standardization for K8s/App logs
+      if [log_level] == "I" { mutate { replace => { "log_level" => "INFO" } } }
+      else if [log_level] == "W" { mutate { replace => { "log_level" => "WARN" } } }
+      else if [log_level] == "E" { mutate { replace => { "log_level" => "ERROR" } } }
+
+      # 4. If Nginx matched, it generates [response] (e.g. 200, 404). Let's map it to a clear field.
+      if [response] {
+        mutate {
+          add_field => { "response_code" => "%{response}" }
+        }
+      }
+    }
+
+    output {
+      elasticsearch {
+        hosts => ["https://elasticsearch-master:9200"]
+        user => "elastic"
+        password => "${ELASTIC_PASSWORD}"
+        ssl => true
+        ssl_certificate_verification => false
+      }
+    }
+extraEnvs:
+  - name: ELASTIC_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: elasticsearch-master-credentials
+        key: password
+
+# Add this block anywhere in your values-ls.yaml
+service:
+  type: ClusterIP
+  ports:
+    - name: beats
+      port: 5044
+      protocol: TCP
+      targetPort: 5044
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: 8080

@@ -1,0 +1,60 @@
+# Dev-specific values
+namespace: demo
+replicaCount: 2
+
+image:
+  repository: devopsflow999/frontend
+  tag: "909"
+  pullPolicy: IfNotPresent
+
+service:
+  port: 80
+
+istio:
+  host: frontend.localdev.me
+  gateway: frontend-gateway
+  tls:
+    enabled: false
+    secretName: api-travelersources-tls-secret
+
+hpa:
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilization: 60
+
+pdb:
+  minAvailable: 1
+
+monitoringNamespace: monitoring
+prometheusRule:
+  release: kube-prom-stack
+
+strategy:
+  scaleDownDelaySeconds: 60
+  steps:
+    - weight: 10
+#      pause: {}
+    - weight: 20
+      pause:
+        duration: 20s
+    - weight: 30
+      pause:
+        duration: 20s
+    - weight: 40
+      pause:
+        duration: 20s
+    - weight: 50
+      pause:
+        duration: 20s
+    - weight: 60
+      pause:
+        duration: 20s
+    - weight: 70
+      pause:
+        duration: 20s
+    - weight: 80
+      pause:
+        duration: 20s
+    - weight: 90
+      pause:
+        duration: 20s

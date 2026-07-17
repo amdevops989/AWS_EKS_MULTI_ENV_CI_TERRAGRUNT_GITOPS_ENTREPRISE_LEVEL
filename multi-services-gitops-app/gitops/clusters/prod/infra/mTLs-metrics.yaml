@@ -1,0 +1,11 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: metrics-allow-plaintext
+  # namespace: demo
+spec:
+  selector:
+    matchLabels:
+      metrics: "true"
+  mtls:
+    mode: PERMISSIVE

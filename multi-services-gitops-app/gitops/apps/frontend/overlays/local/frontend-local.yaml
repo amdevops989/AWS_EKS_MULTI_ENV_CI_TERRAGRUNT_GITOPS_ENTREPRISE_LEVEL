@@ -1,0 +1,387 @@
+---
+# Source: frontend/templates/pdb.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+  namespace: demo
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: frontend
+---
+# Source: frontend/templates/frontend-dash-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-stable-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    release: kube-prom-stack
+data:
+  frontend-stable.json: |
+    {
+      "title": "frontend-Stable DevOps Dashboard",
+      "schemaVersion": 36,
+      "version": 1,
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": "-- Grafana --",
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "panels": [
+        {
+          "type": "gauge",
+          "title": "Success Rate",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "(sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"frontend-stable\",response_code=~\"2..\"}[5m])) / sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"frontend-stable\"}[5m]))) * 100",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "4xx Error Rate",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "(sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"frontend-stable\",response_code=~\"4..\"}[5m])) / sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"frontend-stable\"}[5m]))) * 100",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "5xx Error Rate",
+          "gridPos": { "x": 0, "y": 6, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "(sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"frontend-stable\",response_code=~\"5..\"}[5m])) / sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"frontend-stable\"}[5m]))) * 100",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "P95 Latency (ms)",
+          "gridPos": { "x": 12, "y": 6, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(istio_request_duration_milliseconds_bucket{reporter=\"source\",destination_service_name=\"frontend-stable\"}[5m])) by (le))",
+              "refId": "D"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "ms" } }
+        },
+        {
+          "type": "gauge",
+          "title": "CPU Usage (%)",
+          "gridPos": { "x": 0, "y": 12, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "100 * sum(rate(container_cpu_usage_seconds_total{namespace=\"demo\",pod=~\"frontend-.*\",container!=\"POD\"}[2m])) / sum(kube_pod_container_resource_limits{namespace=\"demo\",pod=~\"frontend-.*\",container!=\"POD\",resource=\"cpu\"})",
+              "refId": "E"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "Memory Usage (%)",
+          "gridPos": { "x": 12, "y": 12, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "100 * sum(container_memory_working_set_bytes{namespace=\"demo\",pod=~\"frontend-.*\",container!=\"POD\"}) / sum(kube_pod_container_resource_limits{namespace=\"demo\",pod=~\"frontend-.*\",container!=\"POD\",resource=\"memory\"})",
+              "refId": "F"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        }
+      ]
+    }
+---
+# Source: frontend/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-canary
+  namespace: demo
+spec:
+  selector:
+    app: frontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+      name: http
+---
+# Source: frontend/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-stable
+  namespace: demo
+spec:
+  selector:
+    app: frontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+      name: http
+---
+# Source: frontend/templates/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: frontend-hpa
+  namespace: demo
+spec:
+  scaleTargetRef:
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
+    name: frontend
+
+  minReplicas: 2
+  maxReplicas: 10
+
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+---
+# Source: frontend/templates/gateway.yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: frontend-gateway
+  namespace: demo
+spec:
+  selector:
+    istio: gateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "frontend.localdev.me"
+---
+# Source: frontend/templates/prometheusrule-frontend.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: frontend-stable-rules
+  namespace: monitoring
+  labels:
+    release: kube-prom-stack
+spec:
+  groups:
+  - name: istio-frontend-alerts
+    rules:
+
+    # ----------------------------------------------------
+    # 1. Stable Success Rate Alert (<95%)
+    # ----------------------------------------------------
+    - alert: IstioFrontendStableLowSuccessRate
+      expr: |
+        (sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="frontend-stable",
+            namespace="demo"
+        }[5m]))
+        /
+        sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="frontend-stable",
+            namespace="demo"
+        }[5m]))) * 100 < 95
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "frontend-stable service success rate is low"
+        description: "Success rate for frontend-stable dropped below 95%."
+
+    # ----------------------------------------------------
+    # 2. Stable 5xx Error Rate Alert (>1%)
+    # ----------------------------------------------------
+    - alert: IstiofrontendStableHigh5xxRate
+      expr: |
+        sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="frontend-stable",
+            response_code=~"5..",
+            namespace="demo"
+        }[5m]))
+        /
+        sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="frontend-stable",
+            namespace="demo"
+        }[5m])) > 0.01
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "frontend-stable service 5xx error rate is too high"
+        description: "More than 1% of requests to frontend-stable are 5xx errors."
+
+    # ----------------------------------------------------
+    # 3. Stable P95 Latency Alert (>500ms)
+    # ----------------------------------------------------
+    - alert: IstiofrontendStableHighP95Latency
+      expr: |
+        histogram_quantile(
+          0.95,
+          sum(rate(istio_request_duration_milliseconds_bucket{
+              reporter="destination",
+              destination_service_name="frontend-stable",
+              namespace="demo"
+          }[5m])) by (le)
+        ) > 500
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "frontend-stable service P95 latency is high"
+        description: "P95 latency for frontend-stable exceeded 500ms."
+---
+# Source: frontend/templates/rollout.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: frontend
+  namespace: demo
+
+spec:
+  replicas: 2
+  revisionHistoryLimit: 2
+
+  selector:
+    matchLabels:
+      app: frontend
+
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "true"
+      labels:
+        app: frontend
+        istio: monitor
+
+    spec:
+      containers:
+        - name: frontend
+          image: "devopsflow999/frontend:909"
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          envFrom:
+            - secretRef:
+                name: frontend-secrets
+
+  strategy:
+    canary:
+      stableService: frontend-stable
+      canaryService: frontend-canary
+      scaleDownDelaySeconds: 60
+
+      trafficRouting:
+        istio:
+          virtualService:
+            name: frontend-vsvc
+            routes:
+              - primary
+
+      steps:
+        - setWeight: 10
+        - setWeight: 20
+        - pause:
+            duration: 20s
+        - setWeight: 30
+        - pause:
+            duration: 20s
+        - setWeight: 40
+        - pause:
+            duration: 20s
+        - setWeight: 50
+        - pause:
+            duration: 20s
+        - setWeight: 60
+        - pause:
+            duration: 20s
+        - setWeight: 70
+        - pause:
+            duration: 20s
+        - setWeight: 80
+        - pause:
+            duration: 20s
+        - setWeight: 90
+        - pause:
+            duration: 20s
+---
+# Source: frontend/templates/virtualservice.yaml
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: frontend-vsvc
+  namespace: demo
+spec:
+  hosts:
+    - "frontend.localdev.me"
+  gateways:
+    - "frontend-gateway"
+  http:
+    - name: canary-debug
+      match:
+        - headers:
+            x-canary:
+              exact: "true"
+      route:
+        - destination:
+            host: frontend-canary
+          weight: 100
+    - name: primary
+      route:
+        - destination:
+            host: frontend-stable
+          weight: 100
+        - destination:
+            host: frontend-canary
+          weight: 0

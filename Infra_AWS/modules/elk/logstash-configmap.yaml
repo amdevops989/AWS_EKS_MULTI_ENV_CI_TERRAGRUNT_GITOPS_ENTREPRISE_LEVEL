@@ -1,0 +1,22 @@
+# logstash-values.yaml (example)
+# The crucial part: defining the pipeline configuration
+logstashPipeline:
+  logstash.conf: |
+    input {
+      # Example: Listens for Filebeat traffic
+      beats {
+        port => 5044
+      }
+    }
+    filter {
+      # Your Grok, Mutate, and Date filters go here!
+    }
+    output {
+      elasticsearch {
+        hosts => ["elasticsearch-master:9200"] 
+        # Use the credentials we retrieved earlier
+        user => "elastic" 
+        password => "${ELASTICSEARCH_PASSWORD}"
+        # ... and so on
+      }
+    }
