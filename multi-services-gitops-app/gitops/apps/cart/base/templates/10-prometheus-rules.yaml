@@ -1,0 +1,78 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Chart.Name }}-stable-rules
+  namespace: {{ .Values.monitoringNamespace | default "monitoring" }}
+  labels:
+    release: {{ .Values.prometheusRule.release | default "kube-prom-stack" }}
+spec:
+  groups:
+  - name: istio-frontend-alerts
+    rules:
+
+    # ----------------------------------------------------
+    # 1. Stable Success Rate Alert (<95%)
+    # ----------------------------------------------------
+    - alert: IstioFrontendStableLowSuccessRate
+      expr: |
+        (sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="{{ .Chart.Name }}-stable",
+            namespace="{{ .Values.namespace | default "dev" }}"
+        }[5m]))
+        /
+        sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="{{ .Chart.Name }}-stable",
+            namespace="{{ .Values.namespace | default "dev" }}"
+        }[5m]))) * 100 < 95
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "{{ .Chart.Name }}-stable service success rate is low"
+        description: "Success rate for {{ .Chart.Name }}-stable dropped below 95%."
+
+    # ----------------------------------------------------
+    # 2. Stable 5xx Error Rate Alert (>1%)
+    # ----------------------------------------------------
+    - alert: Istio{{ .Chart.Name }}StableHigh5xxRate
+      expr: |
+        sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="{{ .Chart.Name }}-stable",
+            response_code=~"5..",
+            namespace="{{ .Values.namespace | default "dev" }}"
+        }[5m]))
+        /
+        sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="{{ .Chart.Name }}-stable",
+            namespace="{{ .Values.namespace | default "dev" }}"
+        }[5m])) > 0.01
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "{{ .Chart.Name }}-stable service 5xx error rate is too high"
+        description: "More than 1% of requests to {{ .Chart.Name }}-stable are 5xx errors."
+
+    # ----------------------------------------------------
+    # 3. Stable P95 Latency Alert (>500ms)
+    # ----------------------------------------------------
+    - alert: Istio{{ .Chart.Name }}StableHighP95Latency
+      expr: |
+        histogram_quantile(
+          0.95,
+          sum(rate(istio_request_duration_milliseconds_bucket{
+              reporter="destination",
+              destination_service_name="{{ .Chart.Name }}-stable",
+              namespace="{{ .Values.namespace | default "dev" }}"
+          }[5m])) by (le)
+        ) > 500
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "{{ .Chart.Name }}-stable service P95 latency is high"
+        description: "P95 latency for {{ .Chart.Name }}-stable exceeded 500ms."

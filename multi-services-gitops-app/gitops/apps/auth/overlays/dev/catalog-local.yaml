@@ -1,0 +1,473 @@
+---
+# Source: catalog/templates/8-pdb.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: catalog-pdb
+  namespace: demo
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: catalog
+---
+# Source: catalog/templates/5-configMap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: catalog-config
+  namespace: demo
+data:
+  PGUSER: "appuser"
+  PGHOST: "my-postgresql.postgres.svc.cluster.local"
+  PGDATABASE: "mv100db"
+  PGPORT: "5432"
+
+  REDIS_URL: "redis-master.redis.svc.cluster.local:6379"
+
+  KAFKA_BROKERS: "kafka.kafka.svc.cluster.local:9092"
+  KAFKA_CLIENT_ID: "products-service"
+  KAFKA_TOPIC_PRODUCTS: "mv100db.public.products"
+  KAFKA_TOPIC_USERS: "mv100db.public.users"
+  KAFKA_TOPIC_ORDERS: "mv100db.public.orders"
+  KAFKA_TOPIC_PAYMENTS: "mv100db.public.payments"
+
+  LOG_LEVEL: "info"
+  PORT: "3001"
+  FRONTEND_URL: "http://frontend.localdev.me"
+  OTEL_PROM_PORT: "9464"
+---
+# Source: catalog/templates/6-dashboard-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: catalog-stable-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    release: kube-prom-stack
+data:
+  catalog-stable.json: |
+    {
+      "title": "catalog-Stable DevOps Dashboard",
+      "schemaVersion": 36,
+      "version": 1,
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": "-- Grafana --",
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "panels": [
+        {
+          "type": "gauge",
+          "title": "Success Rate",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "(sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"catalog-stable\",response_code=~\"2..\"}[5m])) / sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"catalog-stable\"}[5m]))) * 100",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "4xx Error Rate",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "(sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"catalog-stable\",response_code=~\"4..\"}[5m])) / sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"catalog-stable\"}[5m]))) * 100",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "5xx Error Rate",
+          "gridPos": { "x": 0, "y": 6, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "(sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"catalog-stable\",response_code=~\"5..\"}[5m])) / sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"catalog-stable\"}[5m]))) * 100",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "P95 Latency (ms)",
+          "gridPos": { "x": 12, "y": 6, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(istio_request_duration_milliseconds_bucket{reporter=\"source\",destination_service_name=\"catalog-stable\"}[5m])) by (le))",
+              "refId": "D"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "ms" } }
+        },
+        {
+          "type": "gauge",
+          "title": "CPU Usage (%)",
+          "gridPos": { "x": 0, "y": 12, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "100 * sum(rate(container_cpu_usage_seconds_total{namespace=\"demo\",pod=~\"catalog-.*\",container!=\"POD\"}[2m])) / sum(kube_pod_container_resource_limits{namespace=\"demo\",pod=~\"catalog-.*\",container!=\"POD\",resource=\"cpu\"})",
+              "refId": "E"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "Memory Usage (%)",
+          "gridPos": { "x": 12, "y": 12, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "100 * sum(container_memory_working_set_bytes{namespace=\"demo\",pod=~\"catalog-.*\",container!=\"POD\"}) / sum(kube_pod_container_resource_limits{namespace=\"demo\",pod=~\"catalog-.*\",container!=\"POD\",resource=\"memory\"})",
+              "refId": "F"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        }
+      ]
+    }
+---
+# Source: catalog/templates/1-services.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-canary
+  namespace: demo
+spec:
+  selector:
+    app: catalog
+  ports:
+    - protocol: TCP
+      port: 3001
+      targetPort: 3001
+      name: http
+---
+# Source: catalog/templates/1-services.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-stable
+  namespace: demo
+spec:
+  selector:
+    app: catalog
+  ports:
+    - protocol: TCP
+      port: 3001
+      targetPort: 3001
+      name: http
+---
+# Source: catalog/templates/4-serviceMonitor.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-metrics
+  namespace: demo
+  labels:
+    app: catalog
+    metrics: "true"
+spec:
+  selector:
+    app: catalog
+  ports:
+    - name: metrics
+      port: 9464
+      targetPort: 9464
+      protocol: TCP
+---
+# Source: catalog/templates/7-hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: catalog-hpa
+  namespace: demo
+spec:
+  scaleTargetRef:
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
+    name: catalog
+
+  minReplicas: 2
+  maxReplicas: 10
+
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+---
+# Source: catalog/templates/3-gateway.yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: api-gateway
+  namespace: demo
+spec:
+  selector:
+    istio: gateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "api.localdev.me"
+---
+# Source: catalog/templates/10-prometheus-rules.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: catalog-stable-rules
+  namespace: monitoring
+  labels:
+    release: kube-prom-stack
+spec:
+  groups:
+  - name: istio-frontend-alerts
+    rules:
+
+    # ----------------------------------------------------
+    # 1. Stable Success Rate Alert (<95%)
+    # ----------------------------------------------------
+    - alert: IstioFrontendStableLowSuccessRate
+      expr: |
+        (sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="catalog-stable",
+            namespace="demo"
+        }[5m]))
+        /
+        sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="catalog-stable",
+            namespace="demo"
+        }[5m]))) * 100 < 95
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "catalog-stable service success rate is low"
+        description: "Success rate for catalog-stable dropped below 95%."
+
+    # ----------------------------------------------------
+    # 2. Stable 5xx Error Rate Alert (>1%)
+    # ----------------------------------------------------
+    - alert: IstiocatalogStableHigh5xxRate
+      expr: |
+        sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="catalog-stable",
+            response_code=~"5..",
+            namespace="demo"
+        }[5m]))
+        /
+        sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="catalog-stable",
+            namespace="demo"
+        }[5m])) > 0.01
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "catalog-stable service 5xx error rate is too high"
+        description: "More than 1% of requests to catalog-stable are 5xx errors."
+
+    # ----------------------------------------------------
+    # 3. Stable P95 Latency Alert (>500ms)
+    # ----------------------------------------------------
+    - alert: IstiocatalogStableHighP95Latency
+      expr: |
+        histogram_quantile(
+          0.95,
+          sum(rate(istio_request_duration_milliseconds_bucket{
+              reporter="destination",
+              destination_service_name="catalog-stable",
+              namespace="demo"
+          }[5m])) by (le)
+        ) > 500
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "catalog-stable service P95 latency is high"
+        description: "P95 latency for catalog-stable exceeded 500ms."
+---
+# Source: catalog/templates/11-rollout.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: catalog
+  namespace: demo
+spec:
+  replicas: 2
+  revisionHistoryLimit: 2
+
+  selector:
+    matchLabels:
+      app: catalog
+
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "true"
+      labels:
+        app: catalog
+        istio: monitor
+
+    spec:
+      containers:
+        - name: catalog
+          image: "devopsflow999/catalog:dev-v0.1.8"
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: catalog-config
+            - secretRef:
+                name: demo-secrets
+
+          ports:
+            - name: http
+              containerPort: 3001
+              protocol: TCP
+            - name: metrics
+              containerPort: 9464
+              protocol: TCP
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+
+  strategy:
+      canary:
+        stableService: catalog-stable
+        canaryService: catalog-canary
+
+        trafficRouting:
+          istio:
+            virtualService:
+              name: catalog-vsvc
+              routes:
+                - primary
+        steps:
+          - setWeight: 10
+          - setWeight: 20
+          - pause:
+              duration: 20s
+          - setWeight: 30
+          - pause:
+              duration: 20s
+          - setWeight: 40
+          - pause:
+              duration: 20s
+          - setWeight: 50
+          - pause:
+              duration: 20s
+          - setWeight: 60
+          - pause:
+              duration: 20s
+          - setWeight: 70
+          - pause:
+              duration: 20s
+          - setWeight: 80
+          - pause:
+              duration: 20s
+          - setWeight: 90
+          - pause:
+              duration: 20s
+---
+# Source: catalog/templates/2-virtualservice.yaml
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: catalog-vsvc
+  namespace: demo
+spec:
+  hosts:
+    - "api.localdev.me"
+  gateways:
+    - "api-gateway"
+  http:
+
+    # Canary route
+    - name: catalog-canary-debug
+      match:
+        - uri:
+            prefix: "/catalog/"
+          headers:
+            x-canary:
+              exact: "true"
+        - uri:
+            exact: "/catalog"
+          headers:
+            x-canary:
+              exact: "true"
+      rewrite:
+        uri: "/"
+      route:
+        - destination:
+            host: catalog-canary
+            port:
+              number: 3001
+          weight: 100
+      corsPolicy:
+        allowOrigins:
+          - exact: "http://frontend.localdev.me"
+        allowMethods: ["GET","POST","PUT","DELETE","OPTIONS"]
+        allowHeaders: ["*"]
+        allowCredentials: true
+        maxAge: "1h"
+
+    # Stable route
+    - name: primary
+      match:
+        - uri:
+            prefix: "/catalog/"
+        - uri:
+            exact: "/catalog"
+      rewrite:
+        uri: "/"
+      route:
+        - destination:
+            host: catalog-stable
+            port:
+              number: 3001
+          weight: 100
+        - destination:
+            host: catalog-canary
+            port:
+              number: 3001
+          weight: 0
+      corsPolicy:
+        allowOrigins:
+          - exact: "http://frontend.localdev.me"
+        allowMethods: ["GET","POST","PUT","DELETE","OPTIONS"]
+        allowHeaders: ["*"]
+        allowCredentials: true
+        maxAge: "1h"

@@ -1,0 +1,123 @@
+
+# Namespace where resources will be deployed
+namespace: demo
+
+# Database configuration
+database:
+  user: appuser
+  host: my-postgresql.postgres.svc.cluster.local
+  name: mv100db
+  port: "5432"
+
+# Redis configuration
+redis:
+  url: redis-master.redis.svc.cluster.local:6379
+
+# Kafka configuration
+kafka:
+  brokers: kafka.kafka.svc.cluster.local:9092
+  topicProducts: mv100db.public.products
+  topicUsers: mv100db.public.users
+  topicOrders: mv100db.public.orders
+  topicPayments: mv100db.public.payments
+
+# Application-level settings
+app:
+  port: "3002"
+  frontendUrl: "http://frontend.localdev.me"
+
+# Logging level
+logLevel: info
+
+# PrometheusRule configuration
+prometheusRule:
+  release: kube-prom-stack  # label for release
+
+
+# Istio configuration (for VirtualService / Gateway)
+istio:
+  host: api.localdev.me
+  tls:
+    enabled: false
+    secretName: ""  # only required if TLS is enabled
+
+## rollout 
+# Namespace for deployment
+namespace: demo
+
+# Number of replicas and revision history
+replicaCount: 1
+revisionHistoryLimit: 1
+
+# Container image settings
+image:
+  repository: devopsflow999/auth
+  tag: main-v0.1.4
+  pullPolicy: IfNotPresent
+
+# Service ports
+service:
+  httpPort: 3002
+  metricsPort: 9465
+
+# Resource requests and limits
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
+
+# Environment variables from ConfigMap and Secret
+envFrom:
+  configMap: auth-config
+  secret: demo-secrets
+
+# Rollout canary strategy
+strategy:
+  steps:
+    - weight: 10
+    - weight: 20
+      pause:
+        duration: 20s
+    - weight: 30
+      pause:
+        duration: 20s
+    - weight: 40
+      pause:
+        duration: 20s
+    - weight: 50
+      pause:
+        duration: 20s
+    - weight: 60
+      pause:
+        duration: 20s
+    - weight: 70
+      pause:
+        duration: 20s
+    - weight: 80
+      pause:
+        duration: 20s
+    - weight: 90
+      pause:
+        duration: 20s
+
+
+
+# Horizontal Pod Autoscaler configuration
+hpa:
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilization: 60
+
+# PodDisruptionBudget configuration
+pdb:
+  minAvailable: 1
+
+# Namespace for monitoring / Grafana dashboards
+monitoringNamespace: monitoring
+
+
+
+frontendUrl : "http://frontend.localdev.me"

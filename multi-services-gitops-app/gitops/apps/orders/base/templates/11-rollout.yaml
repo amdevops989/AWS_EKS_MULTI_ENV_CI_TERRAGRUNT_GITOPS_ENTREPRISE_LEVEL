@@ -1,0 +1,78 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: {{ .Chart.Name }}
+  namespace: {{ .Values.namespace | default "demo" }}
+spec:
+  replicas: {{ .Values.replicaCount | default 1 }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit | default 1 }}
+
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "true"
+      labels:
+        app: {{ .Chart.Name }}
+        istio: monitor
+        metrics: "true"   ## to let prometheus scrap metrics in mtls mode 
+
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+
+          {{- if .Values.envFrom }}
+          envFrom:
+            {{- if .Values.envFrom.configMap }}
+            - configMapRef:
+                name: {{ .Values.envFrom.configMap }}
+            {{- end }}
+            {{- if .Values.envFrom.secret }}
+            - secretRef:
+                name: {{ .Values.envFrom.secret }}
+            {{- end }}
+          {{- end }}
+
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.httpPort | default 3001 }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.service.metricsPort | default 9464 }}
+              protocol: TCP
+
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu | default "100m" }}
+              memory: {{ .Values.resources.requests.memory | default "128Mi" }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu | default "500m" }}
+              memory: {{ .Values.resources.limits.memory | default "256Mi" }}
+
+  strategy:
+      canary:
+        stableService: {{ .Chart.Name }}-stable
+        canaryService: {{ .Chart.Name }}-canary
+
+        trafficRouting:
+          istio:
+            virtualService:
+              name: {{ .Chart.Name }}-vsvc
+              routes:
+                - primary
+        steps:
+          {{- range .Values.strategy.steps }}
+          - setWeight: {{ .weight | default 10 }}
+          {{- if .pause }}
+          - pause:
+              {{- if .pause.duration }}
+              duration: {{ .pause.duration }}
+              {{- end }}
+          {{- end }}
+          {{- end }}
+

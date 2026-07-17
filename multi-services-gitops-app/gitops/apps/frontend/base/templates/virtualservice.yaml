@@ -1,0 +1,28 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ .Chart.Name }}-vsvc
+  namespace: {{ .Values.namespace | default "dev" }}
+spec:
+  hosts:
+    - "{{ .Values.istio.host }}"
+  gateways:
+    - "{{ .Values.istio.gateway }}"
+  http:
+    - name: canary-debug
+      match:
+        - headers:
+            x-canary:
+              exact: "true"
+      route:
+        - destination:
+            host: {{ .Chart.Name }}-canary
+          weight: 100
+    - name: primary
+      route:
+        - destination:
+            host: {{ .Chart.Name }}-stable
+          weight: 100
+        - destination:
+            host: {{ .Chart.Name }}-canary
+          weight: 0

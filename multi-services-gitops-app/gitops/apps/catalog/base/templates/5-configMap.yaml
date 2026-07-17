@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-config
+  namespace: {{ .Values.namespace | default "demo" }}
+data:
+  PGUSER: {{ .Values.database.user | default "appuser" | quote }}
+  PGHOST: {{ .Values.database.host | default "my-postgresql.postgres.svc.cluster.local" | quote }}
+  PGDATABASE: {{ .Values.database.name | default "mv100db" | quote }}
+  PGPORT: {{ .Values.database.port | default "5432" | quote }}
+
+  REDIS_URL: {{ .Values.redis.url | default "redis-master.redis.svc.cluster.local:6379" | quote }}
+
+  KAFKA_BROKERS: {{ .Values.kafka.brokers | default "kafka.kafka.svc.cluster.local:9092" | quote }}
+  KAFKA_CLIENT_ID: {{ .Values.kafka.clientId | default "products-service" | quote }}
+  KAFKA_TOPIC_PRODUCTS: {{ .Values.kafka.topicProducts | default "mv100db.public.products" | quote }}
+  KAFKA_TOPIC_USERS: {{ .Values.kafka.topicUsers | default "mv100db.public.users" | quote }}
+  KAFKA_TOPIC_ORDERS: {{ .Values.kafka.topicOrders | default "mv100db.public.orders" | quote }}
+  KAFKA_TOPIC_PAYMENTS: {{ .Values.kafka.topicPayments | default "mv100db.public.payments" | quote }}
+
+  LOG_LEVEL: {{ .Values.logLevel | default "info" | quote }}
+  PORT: {{ .Values.app.port | default "3001" | quote }}
+  FRONTEND_URL: {{ .Values.app.frontendUrl | default "http://frontend.localdev.me" | quote }}
+  OTEL_PROM_PORT: {{ .Values.service.metricsPort | default "9464" | quote }}

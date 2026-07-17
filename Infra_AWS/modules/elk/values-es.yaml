@@ -1,0 +1,17 @@
+# values-es.yaml: Configuration for our Minikube-friendly Elasticsearch
+clusterName: elasticsearch
+replicas: 1
+# Prevents unnecessary Pod separation on a single node
+antiAffinity: soft 
+
+volumeClaimTemplate:
+  # Crucial: Minikube uses 'standard' for its default local storage
+  storageClassName: standard 
+  accessModes: [ "ReadWriteOnce" ]
+  resources:
+    requests:
+      # A modest 5GB for testing
+      storage: 5Gi
+
+
+  

@@ -1,0 +1,509 @@
+---
+# Source: cart/templates/8-pdb.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cart-pdb
+  namespace: demo
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: cart
+---
+# Source: cart/templates/5-configMap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cart-config
+  namespace: demo
+data:
+  PGUSER: "appuser"
+  PGHOST: "my-postgresql.postgres.svc.cluster.local"
+  PGDATABASE: "mv100db"
+  PGPORT: "5432"
+
+  REDIS_URL: "redis-master.redis.svc.cluster.local:6379"
+
+  KAFKA_BROKERS: "kafka.kafka.svc.cluster.local:9092"
+  KAFKA_CLIENT_ID: "products-service"
+  KAFKA_TOPIC_PRODUCTS: "mv100db.public.products"
+  KAFKA_TOPIC_USERS: "mv100db.public.users"
+  KAFKA_TOPIC_ORDERS: "mv100db.public.orders"
+  KAFKA_TOPIC_PAYMENTS: "mv100db.public.payments"
+
+  LOG_LEVEL: "info"
+  PORT: "3003"
+  FRONTEND_URL: "http://frontend.localdev.me"
+  OTEL_PROM_PORT: "9466"
+---
+# Source: cart/templates/6-dashboard-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cart-stable-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    release: kube-prom-stack
+data:
+  cart-stable.json: |
+    {
+      "title": "cart-Stable DevOps Dashboard",
+      "schemaVersion": 36,
+      "version": 1,
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": "-- Grafana --",
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "panels": [
+        {
+          "type": "gauge",
+          "title": "Success Rate",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "(sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"cart-stable\",response_code=~\"2..\"}[5m])) / sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"cart-stable\"}[5m]))) * 100",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "4xx Error Rate",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "(sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"cart-stable\",response_code=~\"4..\"}[5m])) / sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"cart-stable\"}[5m]))) * 100",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "5xx Error Rate",
+          "gridPos": { "x": 0, "y": 6, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "(sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"cart-stable\",response_code=~\"5..\"}[5m])) / sum(rate(istio_requests_total{reporter=\"source\",destination_service_name=\"cart-stable\"}[5m]))) * 100",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "P95 Latency (ms)",
+          "gridPos": { "x": 12, "y": 6, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(istio_request_duration_milliseconds_bucket{reporter=\"source\",destination_service_name=\"cart-stable\"}[5m])) by (le))",
+              "refId": "D"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "ms" } }
+        },
+        {
+          "type": "gauge",
+          "title": "CPU Usage (%)",
+          "gridPos": { "x": 0, "y": 12, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "100 * sum(rate(container_cpu_usage_seconds_total{namespace=\"demo\",pod=~\"cart-.*\",container!=\"POD\"}[2m])) / sum(kube_pod_container_resource_limits{namespace=\"demo\",pod=~\"cart-.*\",container!=\"POD\",resource=\"cpu\"})",
+              "refId": "E"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "type": "gauge",
+          "title": "Memory Usage (%)",
+          "gridPos": { "x": 12, "y": 12, "w": 12, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "100 * sum(container_memory_working_set_bytes{namespace=\"demo\",pod=~\"cart-.*\",container!=\"POD\"}) / sum(kube_pod_container_resource_limits{namespace=\"demo\",pod=~\"cart-.*\",container!=\"POD\",resource=\"memory\"})",
+              "refId": "F"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+
+        {
+          "type": "stat",
+          "title": "Items Added / min",
+          "gridPos": { "x": 0, "y": 18, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(rate(cart_items_added_total[5m])) * 60", "refId": "G" }]
+        },
+        {
+          "type": "stat",
+          "title": "Total Items Added",
+          "gridPos": { "x": 8, "y": 18, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(cart_items_added_total)", "refId": "H" }]
+        },
+        {
+          "type": "stat",
+          "title": "Cart Reads / min",
+          "gridPos": { "x": 16, "y": 18, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(rate(cart_reads_total[5m])) * 60", "refId": "I" }]
+        },
+        {
+          "type": "stat",
+          "title": "Checkouts / min",
+          "gridPos": { "x": 0, "y": 23, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(rate(cart_checkouts_total[5m])) * 60", "refId": "J" }]
+        },
+        {
+          "type": "stat",
+          "title": "Checkout Failures / min",
+          "gridPos": { "x": 8, "y": 23, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(rate(cart_checkout_failures_total[5m])) * 60", "refId": "K" }]
+        },
+        {
+          "type": "stat",
+          "title": "Revenue / min",
+          "gridPos": { "x": 16, "y": 23, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(rate(cart_checkout_revenue_total[5m]))", "refId": "L" }],
+          "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
+        },
+        {
+          "type": "stat",
+          "title": "Total Checkout Amount",
+          "gridPos": { "x": 0, "y": 28, "w": 8, "h": 5 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "sum(cart_checkout_amount_sum)", "refId": "M" }],
+          "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
+        },
+        {
+          "type": "graph",
+          "title": "Checkout Amount P95",
+          "gridPos": { "x": 0, "y": 33, "w": 24, "h": 6 },
+          "datasource": "Prometheus",
+          "targets": [{ "expr": "histogram_quantile(0.95,sum(rate(cart_checkout_amount_bucket[5m])) by (le))", "refId": "N" }]
+        }
+      ]
+    }
+---
+# Source: cart/templates/1-services.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: cart-canary
+  namespace: demo
+spec:
+  selector:
+    app: cart
+  ports:
+    - protocol: TCP
+      port: 3003
+      targetPort: 3003
+      name: http
+---
+# Source: cart/templates/1-services.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: cart-stable
+  namespace: demo
+spec:
+  selector:
+    app: cart
+  ports:
+    - protocol: TCP
+      port: 3003
+      targetPort: 3003
+      name: http
+---
+# Source: cart/templates/4-serviceMetrics.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: cart-metrics
+  namespace: demo
+  labels:
+    app: cart
+    metrics: "true"
+spec:
+  selector:
+    app: cart
+  ports:
+    - name: metrics
+      port: 9466
+      targetPort: 9466
+      protocol: TCP
+---
+# Source: cart/templates/7-hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cart-hpa
+  namespace: demo
+spec:
+  scaleTargetRef:
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
+    name: cart
+
+  minReplicas: 2
+  maxReplicas: 10
+
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+---
+# Source: cart/templates/10-prometheus-rules.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cart-stable-rules
+  namespace: monitoring
+  labels:
+    release: kube-prom-stack
+spec:
+  groups:
+  - name: istio-frontend-alerts
+    rules:
+
+    # ----------------------------------------------------
+    # 1. Stable Success Rate Alert (<95%)
+    # ----------------------------------------------------
+    - alert: IstioFrontendStableLowSuccessRate
+      expr: |
+        (sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="cart-stable",
+            namespace="demo"
+        }[5m]))
+        /
+        sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="cart-stable",
+            namespace="demo"
+        }[5m]))) * 100 < 95
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "cart-stable service success rate is low"
+        description: "Success rate for cart-stable dropped below 95%."
+
+    # ----------------------------------------------------
+    # 2. Stable 5xx Error Rate Alert (>1%)
+    # ----------------------------------------------------
+    - alert: IstiocartStableHigh5xxRate
+      expr: |
+        sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="cart-stable",
+            response_code=~"5..",
+            namespace="demo"
+        }[5m]))
+        /
+        sum(rate(istio_requests_total{
+            reporter="destination",
+            destination_service_name="cart-stable",
+            namespace="demo"
+        }[5m])) > 0.01
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "cart-stable service 5xx error rate is too high"
+        description: "More than 1% of requests to cart-stable are 5xx errors."
+
+    # ----------------------------------------------------
+    # 3. Stable P95 Latency Alert (>500ms)
+    # ----------------------------------------------------
+    - alert: IstiocartStableHighP95Latency
+      expr: |
+        histogram_quantile(
+          0.95,
+          sum(rate(istio_request_duration_milliseconds_bucket{
+              reporter="destination",
+              destination_service_name="cart-stable",
+              namespace="demo"
+          }[5m])) by (le)
+        ) > 500
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "cart-stable service P95 latency is high"
+        description: "P95 latency for cart-stable exceeded 500ms."
+---
+# Source: cart/templates/11-rollout.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: cart
+  namespace: demo
+spec:
+  replicas: 2
+  revisionHistoryLimit: 2
+
+  selector:
+    matchLabels:
+      app: cart
+
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "true"
+      labels:
+        app: cart
+        istio: monitor
+        metrics: "true"   ## to let prometheus scrap metrics in mtls mode 
+
+    spec:
+      containers:
+        - name: cart
+          image: "devopsflow999/cart:main-v0.1.1"
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: cart-config
+            - secretRef:
+                name: demo-secrets
+
+          ports:
+            - name: http
+              containerPort: 3003
+              protocol: TCP
+            - name: metrics
+              containerPort: 9466
+              protocol: TCP
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+
+  strategy:
+      canary:
+        stableService: cart-stable
+        canaryService: cart-canary
+
+        trafficRouting:
+          istio:
+            virtualService:
+              name: cart-vsvc
+              routes:
+                - primary
+        steps:
+          - setWeight: 10
+          - setWeight: 20
+          - pause:
+              duration: 20s
+          - setWeight: 30
+          - pause:
+              duration: 20s
+          - setWeight: 40
+          - pause:
+              duration: 20s
+          - setWeight: 50
+          - pause:
+              duration: 20s
+          - setWeight: 60
+          - pause:
+              duration: 20s
+          - setWeight: 70
+          - pause:
+              duration: 20s
+          - setWeight: 80
+          - pause:
+              duration: 20s
+          - setWeight: 90
+          - pause:
+              duration: 20s
+---
+# Source: cart/templates/2-virtualservice.yaml
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: cart-vsvc
+  namespace: demo
+spec:
+  hosts:
+    - "api.localdev.me"
+  gateways:
+    - "api-gateway"
+  http:
+
+    # Canary route
+    - name: cart-canary-debug
+      match:
+        - uri:
+            prefix: "/cart/cart"
+          headers:
+            x-canary:
+              exact: "true"
+      rewrite:
+        uri: "/cart"
+      route:
+        - destination:
+            host: cart-canary
+            port:
+              number: 3003
+          weight: 100
+      # corsPolicy:
+      #   allowOrigins:
+      #     - exact: "http://frontend.localdev.me"
+      #   allowMethods: ["GET","POST","PUT","DELETE","OPTIONS"]
+      #   allowHeaders: ["*"]
+      #   allowCredentials: true
+      #   maxAge: "1h"
+
+    # Stable route
+    - name: primary
+      match:
+        - uri:
+            prefix: "/cart/cart"
+      rewrite:
+        uri: "/cart"
+      route:
+        - destination:
+            host: cart-stable
+            port:
+              number: 3003
+          weight: 100
+        - destination:
+            host: cart-canary
+            port:
+              number: 3003
+          weight: 0
+      # corsPolicy:
+      #   allowOrigins:
+      #     - exact: "http://frontend.localdev.me"
+      #   allowMethods: ["GET","POST","PUT","DELETE","OPTIONS"]
+      #   allowHeaders: ["*"]
+      #   allowCredentials: true
+      #   maxAge: "1h"
