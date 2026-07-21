@@ -20,7 +20,7 @@ terraform {
 provider "aws" {
   region = "us-east-1" # IAM Identity Center is deployed in us-east-1
 }
-
+##
 # ------------------------------------------------------------------------------
 # 1. FETCH EXISTING IAM IDENTITY CENTER INSTANCE
 # ------------------------------------------------------------------------------
