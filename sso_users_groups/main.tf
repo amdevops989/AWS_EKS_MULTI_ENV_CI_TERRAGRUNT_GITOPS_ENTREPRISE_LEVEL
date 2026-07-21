@@ -59,7 +59,7 @@ resource "aws_identitystore_user" "lead_devops" {
     primary = true
   }
 }
-
+//
 
 
 # Assign User to DevOps Group
