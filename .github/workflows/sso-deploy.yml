@@ -6,13 +6,13 @@ on:
       - dev
       # - prod
     paths:
-      - 'Infra_AWS/sso_users_groups/**'  # Only triggers when files in this folder change
+      - 'sso_users_groups/**'  # Only triggers when files in this folder change
   pull_request:
     branches:
       - dev
       # - prod
     paths:
-      - 'Infra_AWS/sso_users_groups/**'
+      - 'sso_users_groups/**'
 
 permissions:
   id-token: write # Required for OIDC authentication
