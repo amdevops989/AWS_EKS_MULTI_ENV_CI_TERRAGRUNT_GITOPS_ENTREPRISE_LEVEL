@@ -1,0 +1,59 @@
+name: "IAM Identity Center - Terraform Deploy"
+
+on:
+  push:
+    branches:
+      - dev
+      # - prod
+    paths:
+      - 'sso_users_groups/**'  # Only triggers when files in this folder change
+  pull_request:
+    branches:
+      - dev
+      # - prod
+    paths:
+      - 'sso_users_groups/**'
+
+permissions:
+  id-token: write # Required for OIDC authentication
+  contents: read
+
+# Directs all steps in this job to run inside your subfolder
+defaults:
+  run:
+    working-directory: sso_users_groups
+
+jobs:
+  terraform:
+    name: "Terraform Apply SSO"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Format & Validate
+        run: |
+          terraform fmt -check
+          terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -input=false
+
+      - name: Terraform Apply
+        if: github.event_name == 'push'
+        run: terraform apply -auto-approve -input=false

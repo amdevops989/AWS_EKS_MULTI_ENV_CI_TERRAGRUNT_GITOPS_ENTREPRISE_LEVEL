@@ -139,15 +139,89 @@ jobs:
             echo "No live components matched the changes."
           fi
 
-      # 4. PR LIFECYCLE: Read-Only Plan execution context #
+     # 4. PR LIFECYCLE: Read-Only Plan execution context
       - name: Terragrunt Plan (Pull Request)
         if: github.event_name == 'pull_request' && steps.diff.outputs.tg_args != ''
+        id: plan
         working-directory: ${{ env.TG_WORKING_DIR }}
         run: |
+          # Run plan and capture output (both stdout and stderr) while keeping exit codes
+          set -o pipefail
           terragrunt run-all plan \
             ${{ steps.diff.outputs.tg_args }} \
             --terragrunt-ignore-external-dependencies \
-            --terragrunt-non-interactive
+            --terragrunt-non-interactive 2>&1 | tee plan_output.txt
+        continue-on-error: true
+
+      # 4b. POST OR UPDATE PLAN COMMENT ON PULL REQUEST
+      - name: Post Plan Output to PR
+        if: github.event_name == 'pull_request' && steps.diff.outputs.tg_args != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = '${{ env.TG_WORKING_DIR }}/plan_output.txt';
+            
+            let planOutput = '';
+            try {
+              planOutput = fs.readFileSync(path, 'utf8');
+            } catch (err) {
+              planOutput = 'Error reading plan output file.';
+            }
+
+            // Truncate output if it exceeds GitHub comment character limits (65,536 chars)
+            const maxLen = 60000;
+            if (planOutput.length > maxLen) {
+              planOutput = planOutput.substring(planOutput.length - maxLen) + '\n\n... (Output truncated due to size limits)';
+            }
+
+            const outcome = '${{ steps.plan.outcome }}' === 'success' ? '✅ Success' : '❌ Failed';
+            const envName = '${{ env.TARGET_ENV }}'.toUpperCase();
+
+            const body = `### 🛠️ Terragrunt Plan Results (\`${envName}\`) - ${outcome}
+
+            <details><summary>Show Terragrunt Plan Output</summary>
+
+            \`\`\`hcl
+            ${planOutput}
+            \`\`\`
+
+            </details>
+
+            *Pushed by: @${{ github.actor }} | Action: \`${{ github.event_name }}\`*`;
+
+            // Search for existing comment by this bot/workflow to update it instead of creating duplicates
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && comment.body.includes('Terragrunt Plan Results')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+      # Fail the job if the plan step failed (after comment is posted)
+      - name: Check Plan Status
+        if: github.event_name == 'pull_request' && steps.plan.outcome == 'failure'
+        run: exit 1
 
       # 5. MERGE / DIRECT PUSH LIFECYCLE: Mutating automated Apply
       - name: Terragrunt Apply (Push/Merge)
