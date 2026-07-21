@@ -11,7 +11,7 @@ terraform {
 provider "aws" {
   region = "us-east-1" # IAM Identity Center is deployed in us-east-1
 }
-//
+
 # ------------------------------------------------------------------------------
 # 1. FETCH EXISTING IAM IDENTITY CENTER INSTANCE
 # ------------------------------------------------------------------------------
@@ -21,7 +21,7 @@ locals {
   sso_instance_arn      = data.aws_ssoadmin_instances.this.arns[0]
   sso_identity_store_id = data.aws_ssoadmin_instances.this.identity_store_ids[0]
 
-  # Account IDs from your AWS Console
+  # Account IDs from AWS Console
   prod_account_id    = "315089529175" # IronCore (Prod)
   sandbox_account_id = "272495906318" # IronCoreSandboxDev (Dev/Sandbox)
 }
@@ -59,8 +59,6 @@ resource "aws_identitystore_user" "lead_devops" {
     primary = true
   }
 }
-//
-
 
 # Assign User to DevOps Group
 resource "aws_identitystore_group_membership" "devops_member" {
@@ -72,9 +70,9 @@ resource "aws_identitystore_group_membership" "devops_member" {
 # ------------------------------------------------------------------------------
 # 4. CREATE PERMISSION SETS
 # ------------------------------------------------------------------------------
-# Administrator Access Permission Set
+# Administrator Access Permission Set (Unique Name)
 resource "aws_ssoadmin_permission_set" "admin" {
-  name             = "DevOps-AdministratorAccess"  # <--- Renamed to avoid collision
+  name             = "DevOps-AdministratorAccess"
   description      = "Full Administrator Access"
   instance_arn     = local.sso_instance_arn
   session_duration = "PT8H"
@@ -85,11 +83,10 @@ resource "aws_ssoadmin_managed_policy_attachment" "admin_policy" {
   permission_set_arn = aws_ssoadmin_permission_set.admin.arn
   managed_policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
-//
 
-## ReadOnly Access Permission Set
+# ReadOnly Access Permission Set (Unique Name)
 resource "aws_ssoadmin_permission_set" "readonly" {
-  name             = "Developers-ReadOnlyAccess"  # <--- Renamed to avoid collision
+  name             = "Developers-ReadOnlyAccess"
   description      = "Read-Only Access for Production visibility"
   instance_arn     = local.sso_instance_arn
   session_duration = "PT8H"
