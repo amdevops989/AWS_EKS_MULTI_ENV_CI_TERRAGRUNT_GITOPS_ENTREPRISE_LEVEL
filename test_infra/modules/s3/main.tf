@@ -11,7 +11,7 @@ resource "aws_s3_bucket" "this" {
   )
 }
 
-##
+#####
 
 # 2. Strict Public Access Block (Security Best Practice)
 resource "aws_s3_bucket_public_access_block" "this" {
