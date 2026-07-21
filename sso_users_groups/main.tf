@@ -20,7 +20,7 @@ terraform {
 provider "aws" {
   region = "us-east-1" # IAM Identity Center is deployed in us-east-1
 }
-##
+
 # ------------------------------------------------------------------------------
 # 1. FETCH EXISTING IAM IDENTITY CENTER INSTANCE
 # ------------------------------------------------------------------------------
@@ -53,6 +53,8 @@ resource "aws_identitystore_group" "developers" {
 # ------------------------------------------------------------------------------
 # 3. CREATE USERS & MEMBERSHIPS
 # ------------------------------------------------------------------------------
+
+# --- DevOps Lead User ---
 resource "aws_identitystore_user" "lead_devops" {
   identity_store_id = local.sso_identity_store_id
   user_name         = "amounir.devops"
@@ -69,17 +71,42 @@ resource "aws_identitystore_user" "lead_devops" {
   }
 }
 
-# Assign User to DevOps Group
+# Assign Lead User to DevOps Group
 resource "aws_identitystore_group_membership" "devops_member" {
   identity_store_id = local.sso_identity_store_id
   group_id          = aws_identitystore_group.devops.group_id
   member_id         = aws_identitystore_user.lead_devops.user_id
 }
 
+# --- Developer User ---
+resource "aws_identitystore_user" "developer_user" {
+  identity_store_id = local.sso_identity_store_id
+  user_name         = "developer.user"
+  display_name      = "App Developer"
+
+  name {
+    given_name  = "App"
+    family_name = "Developer"
+  }
+
+  emails {
+    value   = "am.devops989@gmail.com" # Update with desired email
+    primary = true
+  }
+}
+
+# Assign Developer User to Developers Group
+resource "aws_identitystore_group_membership" "developer_member" {
+  identity_store_id = local.sso_identity_store_id
+  group_id          = aws_identitystore_group.developers.group_id
+  member_id         = aws_identitystore_user.developer_user.user_id
+}
+
 # ------------------------------------------------------------------------------
 # 4. CREATE PERMISSION SETS
 # ------------------------------------------------------------------------------
-# Administrator Access Permission Set (Unique Name)
+
+# Administrator Access Permission Set
 resource "aws_ssoadmin_permission_set" "admin" {
   name             = "DevOps-AdministratorAccess"
   description      = "Full Administrator Access"
@@ -93,7 +120,7 @@ resource "aws_ssoadmin_managed_policy_attachment" "admin_policy" {
   managed_policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
-# ReadOnly Access Permission Set (Unique Name)
+# ReadOnly Access Permission Set
 resource "aws_ssoadmin_permission_set" "readonly" {
   name             = "Developers-ReadOnlyAccess"
   description      = "Read-Only Access for Production visibility"
