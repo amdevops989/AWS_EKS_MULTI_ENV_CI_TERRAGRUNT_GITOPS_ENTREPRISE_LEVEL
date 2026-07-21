@@ -60,6 +60,8 @@ resource "aws_identitystore_user" "lead_devops" {
   }
 }
 
+//
+
 # Assign User to DevOps Group
 resource "aws_identitystore_group_membership" "devops_member" {
   identity_store_id = local.sso_identity_store_id
