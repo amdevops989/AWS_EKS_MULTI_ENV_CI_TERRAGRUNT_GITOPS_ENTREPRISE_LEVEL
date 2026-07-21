@@ -1,5 +1,14 @@
 terraform {
   required_version = ">= 1.7.0"
+
+  backend "s3" {
+    bucket         = "ironcore-terraform-state-us-east-1"
+    key            = "sso/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "ironcore-terraform-state-locks"
+    encrypt        = true
+  }
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
