@@ -85,6 +85,7 @@ resource "aws_ssoadmin_managed_policy_attachment" "admin_policy" {
   permission_set_arn = aws_ssoadmin_permission_set.admin.arn
   managed_policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
+//
 
 ## ReadOnly Access Permission Set
 resource "aws_ssoadmin_permission_set" "readonly" {
