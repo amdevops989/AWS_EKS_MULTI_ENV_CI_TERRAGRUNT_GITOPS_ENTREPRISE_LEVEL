@@ -74,7 +74,7 @@ resource "aws_identitystore_group_membership" "devops_member" {
 # ------------------------------------------------------------------------------
 # Administrator Access Permission Set
 resource "aws_ssoadmin_permission_set" "admin" {
-  name             = "AdministratorAccess"
+  name             = "DevOps-AdministratorAccess"  # <--- Renamed to avoid collision
   description      = "Full Administrator Access"
   instance_arn     = local.sso_instance_arn
   session_duration = "PT8H"
@@ -86,9 +86,9 @@ resource "aws_ssoadmin_managed_policy_attachment" "admin_policy" {
   managed_policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
-# ReadOnly Access Permission Set
+## ReadOnly Access Permission Set
 resource "aws_ssoadmin_permission_set" "readonly" {
-  name             = "ReadOnlyAccess"
+  name             = "Developers-ReadOnlyAccess"  # <--- Renamed to avoid collision
   description      = "Read-Only Access for Production visibility"
   instance_arn     = local.sso_instance_arn
   session_duration = "PT8H"
