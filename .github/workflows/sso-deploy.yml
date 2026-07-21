@@ -21,7 +21,7 @@ permissions:
 # Directs all steps in this job to run inside your subfolder
 defaults:
   run:
-    working-directory: Infra_AWS/sso_users_groups
+    working-directory: sso_users_groups
 
 jobs:
   terraform:
