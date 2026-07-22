@@ -116,7 +116,7 @@ jobs:
             echo "No live components matched the changes."
           fi
 
-      # Terragrunt Plan Execution (-no-color flag prevents broken PR formatting)
+      # 4. PR LIFECYCLE: Read-Only Plan execution context
       - name: Terragrunt Plan
         if: steps.diff.outputs.tg_args != ''
         id: plan
