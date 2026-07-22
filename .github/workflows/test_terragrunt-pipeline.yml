@@ -127,7 +127,7 @@ jobs:
             ${{ steps.diff.outputs.tg_args }} \
             --terragrunt-ignore-external-dependencies \
             --terragrunt-non-interactive \
-            -- -no-color 2>&1 | tee plan_output.txt
+            --terragrunt-no-color 2>&1 | tee plan_output.txt
         continue-on-error: true
 
       # Post or Update Comment on PR with cleaned output
