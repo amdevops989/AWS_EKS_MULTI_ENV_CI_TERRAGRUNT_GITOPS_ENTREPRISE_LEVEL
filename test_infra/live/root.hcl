@@ -7,7 +7,7 @@ locals {
   env                  = local.env_vars.locals.env
 
   # Environment-Aware State Resources
-  state_s3_bucket       = "${local.project_name}-terraform-state-${local.env}-${local.aws_region}"
+  state_s3_bucket       = "${local.project_name}-terraform-state-${local.env}"
   state_dynamodb_table  = "${local.project_name}-terraform-state-locks-${local.env}"
   state_key_prefix      = "s3"
 }
