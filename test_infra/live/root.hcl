@@ -1,19 +1,24 @@
 locals {
   aws_region            = "us-east-1"
   project_name          = "ironcore"
-  
-  # State Storage Variables
-  state_s3_bucket       = "${local.project_name}-terraform-state-${local.aws_region}"
-  state_dynamodb_table  = "${local.project_name}-terraform-state-locks"
-  state_key_prefix      = "eks"
+
+  # Reads env.hcl from the directory where terragrunt was executed
+  env_vars             = read_terragrunt_config(find_in_parent_folders("env.hcl"))
+  env                  = local.env_vars.locals.env
+
+  # Environment-Aware State Resources
+  state_s3_bucket       = "${local.project_name}-terraform-state-${local.env}-${local.aws_region}"
+  state_dynamodb_table  = "${local.project_name}-terraform-state-locks-${local.env}"
+  state_key_prefix      = "s3"
 }
 
 # ==========================================
-# Global Inputs
+# Expose Global Inputs to Child Modules
 # ==========================================
 inputs = {
   aws_region           = local.aws_region
   project_name         = local.project_name
+  env                  = local.env
   state_s3_bucket      = local.state_s3_bucket
   state_dynamodb_table = local.state_dynamodb_table
 }

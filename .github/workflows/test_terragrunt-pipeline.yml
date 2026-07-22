@@ -29,7 +29,7 @@ env:
   # Dynamically determine target branch baseline whether it is a PR or a Push
   TARGET_ENV: ${{ github.base_ref || github.ref_name }}
   # Environmental working directory matching your live repository structure
-  TG_WORKING_DIR: Infra_AWS/live/${{ github.base_ref || github.ref_name }}
+  TG_WORKING_DIR: test_infra/live/${{ github.base_ref || github.ref_name }}
 
 jobs:
   terragrunt-execution:
