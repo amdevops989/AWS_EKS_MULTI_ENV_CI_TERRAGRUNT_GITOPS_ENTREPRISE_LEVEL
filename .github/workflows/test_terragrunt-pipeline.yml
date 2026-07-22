@@ -79,6 +79,7 @@ jobs:
         uses: aquasecurity/tfsec-action@v1.0.3
         with:
           working_directory: ${{ env.TG_WORKING_DIR }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Checkov Security Scan
         uses: bridgecrewio/checkov-action@master
