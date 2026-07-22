@@ -31,7 +31,7 @@ terraform {
 inputs = {
   cluster_name         = local.cluster_name
   region               = include.root.locals.aws_region
-  profile              = include.root.locals.aws_profile
+  # profile              = include.root.locals.aws_profile
   env                  = include.env.locals.env
   project_name         = include.root.locals.project_name
 

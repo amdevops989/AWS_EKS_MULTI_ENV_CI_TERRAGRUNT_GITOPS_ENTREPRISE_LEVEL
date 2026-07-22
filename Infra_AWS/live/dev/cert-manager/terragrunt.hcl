@@ -33,5 +33,5 @@ inputs = {
   k8s_namespace        = "cert-manager"
   release-name         = "cert-manager"
   service_account_name = "cert-manager-sa"
-  profile              = include.root.locals.aws_profile
+  # profile              = include.root.locals.aws_profile
 }

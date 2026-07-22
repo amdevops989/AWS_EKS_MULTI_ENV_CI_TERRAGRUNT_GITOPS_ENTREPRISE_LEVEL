@@ -69,7 +69,17 @@ variable "volume_type" {
   type        = string
   default     = "gp3"
 }
+variable "sso_admin_role_arn" {
+  description = "IAM Role ARN for AWS SSO Administrator Access"
+  type        = string
+  default     = ""
+}
 
+variable "github_actions_role_arn" {
+  description = "IAM Role ARN assumed by GitHub Actions OIDC"
+  type        = string
+  default     = ""
+}
 ###############################################################################
 # Tags
 ###############################################################################
