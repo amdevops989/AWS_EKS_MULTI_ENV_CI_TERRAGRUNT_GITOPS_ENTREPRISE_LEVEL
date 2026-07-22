@@ -14,36 +14,34 @@ on:
     paths:
       - 'test_infra/**'
 
-# 1. CONCURRENCY LOCK: Prevents race conditions from overlapping pushes
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false 
 
 permissions:
-  id-token: write   # Required for AWS OIDC
-  contents: read    # Required to clone the repo
-  pull-requests: write # Required if you want to post plan comments
+  id-token: write      # Required for AWS OIDC
+  contents: read       # Required to clone the repo
+  pull-requests: write # Required for PR comments
 
 env:
   TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
-  # Dynamically determine target branch baseline whether it is a PR or a Push
   TARGET_ENV: ${{ github.base_ref || github.ref_name }}
-  # Environmental working directory matching your live repository structure
   TG_WORKING_DIR: test_infra/live/${{ github.base_ref || github.ref_name }}
 
 jobs:
-  terragrunt-execution:
-    name: Terragrunt ${{ github.event_name == 'pull_request' && 'Plan' || 'Apply' }} - ${{ github.base_ref || github.ref_name }}
+  # =========================================================
+  # 1. PLAN JOB (Runs on Pull Requests - Read-Only Check)
+  # =========================================================
+  terragrunt-plan:
+    name: Terragrunt Plan - ${{ github.base_ref || github.ref_name }}
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    
-    # Map branch keywords to explicit GitHub Environments (development or production)
-    environment: ${{ (github.base_ref || github.ref_name) == 'dev' && 'development' || 'production' }}
 
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Essential: Terragrunt needs complete history to parse git diffing accurately
+          fetch-depth: 0
 
       - name: Create Plugin Cache Dir
         run: mkdir -p ${{ env.TF_PLUGIN_CACHE_DIR }}
@@ -66,59 +64,39 @@ jobs:
         with:
           terragrunt-version: 0.58.3
 
-      # Assumes role securely via OIDC pulling configurations based on active Environment
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
-      # 2. STATIC ANALYSIS & SECURITY SCANNING (FAIL-FAST POLICY GATE)
-      # Run tfsec directly on the active environment's configuration files
+      # Security Scans
       - name: Run tfsec Security Scan
         uses: aquasecurity/tfsec-action@v1.0.3
         with:
           working_directory: ${{ env.TG_WORKING_DIR }}
-          # soft_fail: true # Uncomment this if you want warnings instead of outright pipeline failures
 
-      # Run Checkov against the same environment directory
       - name: Run Checkov Security Scan
         uses: bridgecrewio/checkov-action@master
         with:
           directory: ${{ env.TG_WORKING_DIR }}
-          framework: terraform # Forces Checkov to focus solely on our Terraform files
-          ## soft_fail: true # Uncomment this during transition periods to prevent failing the pipeline
+          framework: terraform
 
-      # 3. DUAL ENGINE DIFF LOGIC: Seamless switching between PR contexts and Direct Branch Pushes
+      # Dynamic Change Detection
       - name: Determine Targeted Changes
         id: diff
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "Processing Pull Request lifecycle tracking..."
-            BASE_SHA=$(jq -r .pull_request.base.sha < $GITHUB_EVENT_PATH)
-            HEAD_SHA=$(jq -r .pull_request.head.sha < $GITHUB_EVENT_PATH)
-            git diff --name-only $BASE_SHA $HEAD_SHA > raw_diff.txt
-          else
-            echo "Processing Direct Branch Push lifecycle tracking..."
-            # Catch fresh branch initial pushes or force-pushes with broken event histories
-            if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ] || [ -z "${{ github.event.before }}" ]; then
-              echo "Fresh or standalone push tracking detected. Analyzing history baseline."
-              git diff --name-only HEAD~1 HEAD > raw_diff.txt || touch raw_diff.txt
-            else
-              git diff --name-only ${{ github.event.before }} ${{ github.sha }} > raw_diff.txt || touch raw_diff.txt
-            fi
-          fi
-          
+          echo "Processing Pull Request lifecycle tracking..."
+          BASE_SHA=$(jq -r .pull_request.base.sha < $GITHUB_EVENT_PATH)
+          HEAD_SHA=$(jq -r .pull_request.head.sha < $GITHUB_EVENT_PATH)
+          git diff --name-only $BASE_SHA $HEAD_SHA > raw_diff.txt
+
           if [ ! -s raw_diff.txt ]; then
             echo "tg_args=" >> $GITHUB_OUTPUT
             echo "No changes found across the git tracking delta."
             exit 0
           fi
 
-          echo "Raw Git Diff Captured:"
-          cat raw_diff.txt
-
-          # Check for shared modules or root modifications
           if grep -qE "modules/|env.hcl|root.hcl" raw_diff.txt; then
             echo "Core shared files or modules modified. Automatically evaluating all live environment units."
             cd ${{ env.TG_WORKING_DIR }}
@@ -128,8 +106,7 @@ jobs:
             echo "Isolating localized structural folder changes."
             grep -E "^${{ env.TG_WORKING_DIR }}/" raw_diff.txt | sed "s|^${{ env.TG_WORKING_DIR }}/||" | cut -d'/' -f1 | sort -u > filters-file.txt
           fi
-          
-          # Render include-dir commands with explicit absolute structure mappings
+
           if [ -s filters-file.txt ]; then
             TG_ARGS=$(awk -v dir="${{ env.TG_WORKING_DIR }}" '{printf "--terragrunt-include-dir=%s/%s ", dir, $0}' filters-file.txt)
             echo "tg_args=$TG_ARGS" >> $GITHUB_OUTPUT
@@ -139,23 +116,23 @@ jobs:
             echo "No live components matched the changes."
           fi
 
-     # 4. PR LIFECYCLE: Read-Only Plan execution context
-      - name: Terragrunt Plan (Pull Request)
-        if: github.event_name == 'pull_request' && steps.diff.outputs.tg_args != ''
+      # Terragrunt Plan Execution (-no-color flag prevents broken PR formatting)
+      - name: Terragrunt Plan
+        if: steps.diff.outputs.tg_args != ''
         id: plan
         working-directory: ${{ env.TG_WORKING_DIR }}
         run: |
-          # Run plan and capture output (both stdout and stderr) while keeping exit codes
           set -o pipefail
           terragrunt run-all plan \
             ${{ steps.diff.outputs.tg_args }} \
             --terragrunt-ignore-external-dependencies \
-            --terragrunt-non-interactive 2>&1 | tee plan_output.txt
+            --terragrunt-non-interactive \
+            -- -no-color 2>&1 | tee plan_output.txt
         continue-on-error: true
 
-      # 4b. POST OR UPDATE PLAN COMMENT ON PULL REQUEST
+      # Post or Update Comment on PR with cleaned output
       - name: Post Plan Output to PR
-        if: github.event_name == 'pull_request' && steps.diff.outputs.tg_args != ''
+        if: steps.diff.outputs.tg_args != ''
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -170,10 +147,13 @@ jobs:
               planOutput = 'Error reading plan output file.';
             }
 
-            // Truncate output if it exceeds GitHub comment character limits (65,536 chars)
+            // Strip ANSI codes explicitly for clean Markdown display
+            const cleanOutput = planOutput.replace(/\u001b\[[0-9;]*[a-zA-K]/g, '');
+
             const maxLen = 60000;
-            if (planOutput.length > maxLen) {
-              planOutput = planOutput.substring(planOutput.length - maxLen) + '\n\n... (Output truncated due to size limits)';
+            let finalOutput = cleanOutput;
+            if (finalOutput.length > maxLen) {
+              finalOutput = finalOutput.substring(finalOutput.length - maxLen) + '\n\n... (Output truncated due to size limits)';
             }
 
             const outcome = '${{ steps.plan.outcome }}' === 'success' ? '✅ Success' : '❌ Failed';
@@ -184,14 +164,13 @@ jobs:
             <details><summary>Show Terragrunt Plan Output</summary>
 
             \`\`\`hcl
-            ${planOutput}
+            ${finalOutput}
             \`\`\`
 
             </details>
 
             *Pushed by: @${{ github.actor }} | Action: \`${{ github.event_name }}\`*`;
 
-            // Search for existing comment by this bot/workflow to update it instead of creating duplicates
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -218,14 +197,92 @@ jobs:
               });
             }
 
-      # Fail the job if the plan step failed (after comment is posted)
       - name: Check Plan Status
-        if: github.event_name == 'pull_request' && steps.plan.outcome == 'failure'
+        if: steps.plan.outcome == 'failure'
         run: exit 1
 
-      # 5. MERGE / DIRECT PUSH LIFECYCLE: Mutating automated Apply
+  # =========================================================
+  # 2. APPLY JOB (Runs on Merge / Push - REQUIRES APPROVAL)
+  # =========================================================
+  terragrunt-apply:
+    name: Terragrunt Apply - ${{ github.ref_name }}
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    
+    # Environment assignment here enforces manual reviewer approval in GitHub Settings!
+    environment: ${{ github.ref_name == 'dev' && 'development' || 'production' }}
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create Plugin Cache Dir
+        run: mkdir -p ${{ env.TF_PLUGIN_CACHE_DIR }}
+
+      - name: Cache Terraform Plugins
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: ${{ runner.os }}-tf-cache-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-tf-cache-
+
+      - name: Setup OpenTofu/Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+
+      - name: Setup Terragrunt
+        uses: autero1/action-terragrunt@v3
+        with:
+          terragrunt-version: 0.58.3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Determine Targeted Changes
+        id: diff
+        run: |
+          echo "Processing Direct Branch Push lifecycle tracking..."
+          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ] || [ -z "${{ github.event.before }}" ]; then
+            echo "Fresh or standalone push tracking detected. Analyzing history baseline."
+            git diff --name-only HEAD~1 HEAD > raw_diff.txt || touch raw_diff.txt
+          else
+            git diff --name-only ${{ github.event.before }} ${{ github.sha }} > raw_diff.txt || touch raw_diff.txt
+          fi
+
+          if [ ! -s raw_diff.txt ]; then
+            echo "tg_args=" >> $GITHUB_OUTPUT
+            echo "No changes found across the git tracking delta."
+            exit 0
+          fi
+
+          if grep -qE "modules/|env.hcl|root.hcl" raw_diff.txt; then
+            echo "Core shared files or modules modified. Automatically evaluating all live environment units."
+            cd ${{ env.TG_WORKING_DIR }}
+            find . -type f -name "terragrunt.hcl" -exec dirname {} \; | sed 's|^\./||' > ../../../filters-file.txt
+            cd - > /dev/null
+          else
+            echo "Isolating localized structural folder changes."
+            grep -E "^${{ env.TG_WORKING_DIR }}/" raw_diff.txt | sed "s|^${{ env.TG_WORKING_DIR }}/||" | cut -d'/' -f1 | sort -u > filters-file.txt
+          fi
+
+          if [ -s filters-file.txt ]; then
+            TG_ARGS=$(awk -v dir="${{ env.TG_WORKING_DIR }}" '{printf "--terragrunt-include-dir=%s/%s ", dir, $0}' filters-file.txt)
+            echo "tg_args=$TG_ARGS" >> $GITHUB_OUTPUT
+            echo "Filters configured: $TG_ARGS"
+          else
+            echo "tg_args=" >> $GITHUB_OUTPUT
+            echo "No live components matched the changes."
+          fi
+
       - name: Terragrunt Apply (Push/Merge)
-        if: github.event_name == 'push' && steps.diff.outputs.tg_args != ''
+        if: steps.diff.outputs.tg_args != ''
         working-directory: ${{ env.TG_WORKING_DIR }}
         run: |
           terragrunt run-all apply \
