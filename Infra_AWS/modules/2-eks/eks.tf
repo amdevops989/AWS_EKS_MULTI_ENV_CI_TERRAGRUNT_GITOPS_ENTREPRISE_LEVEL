@@ -40,6 +40,7 @@ module "eks" {
     karpenter = {
       ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = var.node_instance_type
+      capacity_type  = var.capacity_type
       labels = {
         workload = "addons"
         role     = "main"
@@ -74,7 +75,7 @@ module "eks" {
   # ---------------------------------------------------------------------------
   # CLUSTER ACCESS ENTRIES (AWS SSO + GitHub Actions CI/CD)
   # ---------------------------------------------------------------------------
-  enable_cluster_creator_admin_permissions = true
+  enable_cluster_creator_admin_permissions = false
 
   access_entries = {
     # 1. Human SSO Admin Access
@@ -92,7 +93,7 @@ module "eks" {
       }
     }
 
-    # 2. Machine CI/CD Access (GitHub Actions OIDC Role)
+    # # 2. Machine CI/CD Access (GitHub Actions OIDC Role)
     github_actions_cicd = {
       principal_arn = "arn:aws:iam::272495906318:role/github-actions-eks-deployer-role"
       type          = "STANDARD"

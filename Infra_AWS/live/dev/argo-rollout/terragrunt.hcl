@@ -19,7 +19,7 @@ dependency "eks" {
 }
 
 terraform {
-  source = "../../../modules/4-external-dns"
+  source = "../../../modules/10-argo-rollout"
 }
 
 inputs = {
@@ -30,11 +30,5 @@ inputs = {
   k8s_token            = dependency.eks.outputs.cluster_token
   oidc_provider_arn    = dependency.eks.outputs.oidc_provider_arn
   oidc_provider_url    = dependency.eks.outputs.oidc_provider_url
-  k8s_namespace        = "external-dns"
-  service_account_name = "external-dns-sa"
-  domain_filters       = ["vanguardyouth.store"]
-  zone_type            = "public"
-  hosted_zone_id       = "Z0195540TGGJPD1QICHW"
-  helm_chart_version   = "1.19.0"
   # profile              = include.root.locals.aws_profile
 }

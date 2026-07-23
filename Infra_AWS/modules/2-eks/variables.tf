@@ -45,6 +45,13 @@ variable "node_min_capacity" {
   type        = number
 }
 
+variable "capacity_type" {
+  description = "Capacity type for the EKS managed node group (ON_DEMAND or SPOT)"
+  type        = string
+}
+
+
+
 variable "node_max_capacity" {
   description = "Maximum number of nodes"
   type        = number

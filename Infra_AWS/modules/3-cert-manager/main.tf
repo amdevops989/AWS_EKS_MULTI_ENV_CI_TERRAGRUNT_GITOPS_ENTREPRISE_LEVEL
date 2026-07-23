@@ -6,19 +6,88 @@ resource "kubernetes_namespace" "cert_manager" {
     name = var.k8s_namespace
   }
 }
+# -----------------------------
 
 # -----------------------------
-# Service Account for cert-manager
+# 1. IAM Policy for Route 53 DNS-01 Challenges
+# -----------------------------
+resource "aws_iam_policy" "cert_manager_route53" {
+  name        = "cert-manager-route53-policy"
+  description = "Allows cert-manager to create DNS-01 TXT records in Route 53"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "route53:GetChange"
+        Resource = "arn:aws:route53:::change/*"
+      },
+      {
+        Effect   = "Allow" # Fixed: Must be a string, not an array
+        Action = [
+          "route53:ChangeResourceRecordSets",
+          "route53:ListResourceRecordSets"
+        ]
+        Resource = "arn:aws:route53:::hostedzone/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = "route53:ListHostedZonesByName"
+        Resource = "*"
+      }
+    ]
+  })
+}
+# -----------------------------
+# 2. IAM Role for Cert-Manager (IRSA)
+# -----------------------------
+resource "aws_iam_role" "cert_manager" {
+  name = "cert-manager-route53-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = var.oidc_provider_arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            # Safely strips the prefix to leave only "oidc.eks.us-east-1.amazonaws.com/id/XXXXX:sub"
+            "${element(split("oidc-provider/", var.oidc_provider_arn), 1)}:sub" = "system:serviceaccount:${kubernetes_namespace.cert_manager.metadata[0].name}:${var.service_account_name}"
+          }
+        }
+      }
+    ]
+  })
+}
+
+# -----------------------------
+# 3. Attach Policy to Role
+# -----------------------------
+resource "aws_iam_role_policy_attachment" "cert_manager_attach" {
+  role       = aws_iam_role.cert_manager.name
+  policy_arn = aws_iam_policy.cert_manager_route53.arn
+}
+
+# -----------------------------
+# 4. Kubernetes Service Account
 # -----------------------------
 resource "kubernetes_service_account" "cert_manager_sa" {
   metadata {
     name      = var.service_account_name
     namespace = kubernetes_namespace.cert_manager.metadata[0].name
     annotations = {
-      "eks.amazonaws.com/role-arn" = var.oidc_provider_arn
+      "eks.amazonaws.com/role-arn" = aws_iam_role.cert_manager.arn
     }
   }
 }
+# -----------------------------
+# Helm Release
+# -----------------------------
 resource "helm_release" "cert_manager" {
   name       = "cert-manager"
   repository = "https://charts.jetstack.io"
@@ -37,11 +106,8 @@ resource "helm_release" "cert_manager" {
         name   = kubernetes_service_account.cert_manager_sa.metadata[0].name
       }
 
-      # -----------------------
-      # Force pods to main node group
-      # -----------------------
       nodeSelector = {
-        role = "main"   # your MNG label
+        role = "main"
       }
 
       webhook = {
@@ -63,9 +129,8 @@ resource "helm_release" "cert_manager" {
   ]
 }
 
-
 # -----------------------------
-# Production ClusterIssuer (DNS-01)
+# Cluster Issuers
 # -----------------------------
 resource "kubectl_manifest" "production_cluster_issuer" {
   yaml_body = <<YAML
@@ -91,9 +156,6 @@ YAML
   ]
 }
 
-# -----------------------------
-# Production ClusterIssuer (HTTP-01)
-# -----------------------------
 resource "kubectl_manifest" "production_cluster_issuer_http" {
   yaml_body = <<YAML
 apiVersion: cert-manager.io/v1
@@ -118,9 +180,6 @@ YAML
   ]
 }
 
-# -----------------------------
-# Staging ClusterIssuer (HTTP-01)
-# -----------------------------
 resource "kubectl_manifest" "staging_cluster_issuer_http" {
   yaml_body = <<YAML
 apiVersion: cert-manager.io/v1
