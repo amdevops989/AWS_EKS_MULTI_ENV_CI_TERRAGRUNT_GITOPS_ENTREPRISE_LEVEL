@@ -22,3 +22,8 @@ output "nat_gateway_ids" {
   description = "NAT Gateway IDs (list)"
   value       = module.vpc.natgw_ids
 }
+
+output "vpc_cidr_block" {
+  description = "VPC CIDR block"
+  value       = module.vpc.vpc_cidr_block
+}
