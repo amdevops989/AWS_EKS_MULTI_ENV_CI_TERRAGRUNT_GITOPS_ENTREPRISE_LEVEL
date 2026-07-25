@@ -32,11 +32,13 @@ inputs = {
   intra_subnets   = ["10.10.201.0/24", "10.10.202.0/24"]
 
   public_subnet_tags = {
-    "kubernetes.io/role/elb" = "1"
+    "kubernetes.io/role/elb"                  = "1"
+    "karpenter.sh/discovery"                 = "${include.root.locals.project_name}-${include.env.locals.env}"
   }
 
   private_subnet_tags = {
-    "kubernetes.io/role/internal-elb" = "1"
+    "kubernetes.io/role/internal-elb"        = "1"
+    "karpenter.sh/discovery"                 = "${include.root.locals.project_name}-${include.env.locals.env}"
   }
 
   tags = {

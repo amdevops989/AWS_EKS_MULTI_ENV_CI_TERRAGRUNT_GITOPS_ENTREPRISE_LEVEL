@@ -17,7 +17,7 @@ module "eks" {
     enabled = false
   }
 
-  # Managed Core Addons (EBS CSI driver moved below to use Pod Identity)
+  # Managed Core Addons
   addons = {
     coredns = {}
     eks-pod-identity-agent = {
@@ -64,7 +64,7 @@ module "eks" {
             volume_type           = var.volume_type
             iops                  = 3000
             throughput            = 125
-            encrypted             = true
+            encrypted             = true # Uses default AWS managed key (aws/ebs)
             delete_on_termination = true
           }
         }
@@ -75,25 +75,25 @@ module "eks" {
   # ---------------------------------------------------------------------------
   # CLUSTER ACCESS ENTRIES (AWS SSO + GitHub Actions CI/CD)
   # ---------------------------------------------------------------------------
-  enable_cluster_creator_admin_permissions = false
+  enable_cluster_creator_admin_permissions = true
 
   access_entries = {
     # 1. Human SSO Admin Access
-    sso_console_admin = {
-      principal_arn = "arn:aws:iam::272495906318:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_DevOps-AdministratorAccess_a8154c80336f8ef7"
-      type          = "STANDARD"
+    # sso_console_admin = {
+    #   principal_arn = "arn:aws:iam::272495906318:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_DevOps-AdministratorAccess_a8154c80336f8ef7"
+    #   type          = "STANDARD"
 
-      policy_associations = {
-        admin_policy = {
-          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-          access_scope = {
-            type = "cluster"
-          }
-        }
-      }
-    }
+    #   policy_associations = {
+    #     admin_policy = {
+    #       policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+    #       access_scope = {
+    #         type = "cluster"
+    #       }
+    #     }
+    #   }
+    # }
 
-    # # 2. Machine CI/CD Access (GitHub Actions OIDC Role)
+    # 2. Machine CI/CD Access (GitHub Actions OIDC Role)
     github_actions_cicd = {
       principal_arn = "arn:aws:iam::272495906318:role/github-actions-eks-deployer-role"
       type          = "STANDARD"
@@ -109,10 +109,12 @@ module "eks" {
     }
   }
 
-  # ---------------------------------------------------------------------------
+  ## ---------------------------------------------------------------------------
   # ENCRYPTION & SECURITY GROUPS
   # ---------------------------------------------------------------------------
-  create_kms_key = true
+  # Disable CMK creation and set encryption_config to null to rely on AWS default key behavior
+  create_kms_key    = false
+  encryption_config = null
 
   node_security_group_tags = {
     "karpenter.sh/discovery" = var.cluster_name
@@ -129,7 +131,7 @@ module "ebs_csi_pod_identity" {
   name = "${var.cluster_name}-ebs-csi"
 
   attach_aws_ebs_csi_policy = true
-  aws_ebs_csi_kms_arns      = [module.eks.kms_key_arn]
+  # Removed CMK ARNs so EBS CSI uses default AWS-managed KMS key (aws/ebs)
 
   associations = {
     main = {
@@ -174,7 +176,7 @@ resource "kubectl_manifest" "ebs_csi_default_storage_class" {
   parameters:
     type: gp3  
     fsType: ext4
-    encrypted: "true"
+    encrypted: "true" # Uses AWS managed default key (aws/ebs)
   YAML
 
   depends_on = [
@@ -264,7 +266,7 @@ resource "kubectl_manifest" "karpenter_node_class" {
           ebs:
             volumeSize: ${var.volume_size}Gi
             volumeType: ${var.volume_type}
-            encrypted: true
+            encrypted: true # Uses default AWS managed key
   YAML
 
   depends_on = [
@@ -334,3 +336,36 @@ resource "helm_release" "metrics_server" {
     module.eks
   ]
 }
+
+
+# ## fixing aws ecr login
+# # AWS provider for Public ECR (Must be us-east-1)
+# provider "aws" {
+#   alias  = "ecr_public"
+#   region = "us-east-1"
+# }
+
+# # Fetch dynamic authentication token
+# data "aws_ecrpublic_authorization_token" "token" {
+#   provider = aws.ecr_public
+# }
+
+# provider "helm" {
+#   kubernetes {
+#     host                   = module.eks.cluster_endpoint
+#     cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+    
+#     exec {
+#       api_version = "client.authentication.k8s.io/v1beta1"
+#       command     = "aws"
+#       args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
+#     }
+#   }
+
+#   # Registry credentials for OCI public.ecr.aws charts
+#   registry {
+#     url      = "oci://public.ecr.aws"
+#     username = data.aws_ecrpublic_authorization_token.token.user_name
+#     password = data.aws_ecrpublic_authorization_token.token.password
+#   }
+# }

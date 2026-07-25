@@ -1,0 +1,1 @@
+minikube start --addons volumesnapshots,csi-hostpath-driver --apiserver-port=6443 --container-runtime=containerd --memory=4096 --cpus=2

@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: istio-gateway-pod-monitor
+  namespace: monitoring
+  labels:
+    release: kube-prom-stack # 🌟 MUST match your Prometheus Helm release label
+spec:
+  namespaceSelector:
+    matchNames:
+      - istio-ingress # Targets the istio-ingress namespace
+  selector:
+    matchLabels:
+      app: gateway # 🌟 Matches pod labels directly (kubectl get pods -n istio-ingress --show-labels)
+      istio: gateway # Matches exact labels from your output
+  podMetricsEndpoints:
+    # - port: http-envoy-prom # Port 15090 is automatically named 'http-envoy-prom' inside Istio pods
+    - targetPort: 15090 # Targets port 15090 directly by number
+      path: /stats/prometheus
+      interval: 15s

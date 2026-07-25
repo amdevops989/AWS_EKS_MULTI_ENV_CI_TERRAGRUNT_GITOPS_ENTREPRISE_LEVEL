@@ -2,14 +2,13 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: istio-gateway-svc-monitor
-  namespace: monitoring
+  namespace: monitoring # Located in monitoring namespace
   labels:
-    # FIXED: This matches your exact Prometheus Operator release label
-    release: prometheus-stack 
+    release: prometheus-stack # Matches Prometheus Operator release selector
 spec:
   namespaceSelector:
     matchNames:
-      - istio-system
+      - istio-ingress # Tells Prometheus to look inside istio-ingress for the service
   selector:
     matchLabels:
       prometheus-scrape: istio-gateway

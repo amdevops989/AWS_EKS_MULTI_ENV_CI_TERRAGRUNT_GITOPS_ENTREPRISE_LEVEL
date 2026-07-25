@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: postgres-db
-  namespace: production
+  namespace: dev
 spec:
   serviceName: database-engine
   replicas: 1
@@ -13,18 +13,23 @@ spec:
     metadata:
       labels:
         app: postgres-db
+        devopsteam: ironcore-devops
     spec:
       containers:
       - name: postgres
         image: postgres:15-alpine
         imagePullPolicy: IfNotPresent
         env:
+        # --- ADD THIS LINE ---
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        # ---------------------
         - name: POSTGRES_USER
           value: devopsadmin
         - name: POSTGRES_PASSWORD
           value: secretpassword
         - name: POSTGRES_DB
-          value: app_production
+          value: app_dev
         ports:
         - containerPort: 5432
           name: dbport
@@ -44,7 +49,20 @@ spec:
     spec:
       accessModes:
       - ReadWriteOnce
-      storageClassName: csi-hostpath-sc
+      storageClassName: gp3-default
       resources:
         requests:
           storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: database-engine
+  namespace: dev
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: dbport
+  selector:
+    app: postgres-db

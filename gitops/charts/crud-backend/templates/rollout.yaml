@@ -4,14 +4,14 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: backend-prod-backend-config # Explicitly matches what the Pod is looking for
-  namespace: production
+  name: backend-dev-backend-config # Explicitly matches what the Pod is looking for
+  namespace: dev
   annotations:
     argocd.argoproj.io/compare-options: IgnoreExtraneous
 data: # FIXED: Ensure data block is directly under the root level, NOT nested under 'spec'
   POSTGRES_USER: "devopsadmin"
-  POSTGRES_DB: "app_production"
-  DB_HOST: "database-engine.production.svc.cluster.local"
+  POSTGRES_DB: "app_dev"
+  DB_HOST: "database-engine.dev.svc.cluster.local"
 ---
 apiVersion: v1
 kind: Secret

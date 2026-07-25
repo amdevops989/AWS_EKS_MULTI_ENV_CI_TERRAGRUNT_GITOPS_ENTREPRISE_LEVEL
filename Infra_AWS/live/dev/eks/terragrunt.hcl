@@ -43,7 +43,7 @@ inputs = {
   node_instance_type    = ["m5.xlarge", "m5a.xlarge", "m5d.xlarge", "m6i.xlarge", "m6a.xlarge"] 
   capacity_type         = "SPOT"                                 
   node_desired_capacity = 1
-  node_min_capacity     = 0
+  node_min_capacity     = 1
   node_max_capacity     = 1
   # -------------------------------
 

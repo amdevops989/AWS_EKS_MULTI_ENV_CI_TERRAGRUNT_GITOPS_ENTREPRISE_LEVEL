@@ -7,6 +7,10 @@ resource "helm_release" "gateway" {
   create_namespace = true
   version          = "1.17.1"
 
+  # Increase timeout to give AWS enough time to provision the NLB
+  timeout = 900
+  wait    = true
+
   # Force Gateway pods onto the main MNG node group
   set {
     name  = "nodeSelector.role"
@@ -19,15 +23,10 @@ resource "helm_release" "gateway" {
     value = var.domain_filters
   }
 
-  # 2. Force AWS Network Load Balancer (NLB) via AWS Load Balancer Controller
+  # 2. Native EKS In-Tree Network Load Balancer (NLB) Configuration
   set {
     name  = "service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-type"
-    value = "external" # Uses AWS LB Controller instead of in-tree controller
-  }
-
-  set {
-    name  = "service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-nlb-target-type"
-    value = "instance" # or "ip" if using VPC CNI directly
+    value = "nlb" # Replaced "external" to let the built-in K8s service-controller provision the NLB directly
   }
 
   set {
@@ -36,8 +35,22 @@ resource "helm_release" "gateway" {
   }
 
   set {
-    name  = "service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-attributes"
-    value = "load_balancing.cross_zone.enabled=true"
+    name  = "service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-backend-protocol"
+    value = "tcp"
+  }
+
+# 🌟 CRITICAL FOR SERVICEMONITOR: Expose Envoy metrics port on the Gateway K8s Service
+  set {
+    name  = "service.extraPorts[0].name"
+    value = "http-envoy-prom"
+  }
+  set {
+    name  = "service.extraPorts[0].port"
+    value = 15090
+  }
+  set {
+    name  = "service.extraPorts[0].targetPort"
+    value = 15090
   }
 
   depends_on = [

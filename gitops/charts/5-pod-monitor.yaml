@@ -11,6 +11,7 @@ spec:
     matchNames:
       - default
       - production
+      - dev
   selector:
     matchLabels:
       security.istio.io/tlsMode: istio
