@@ -3,6 +3,12 @@ include "root" {
   expose = true
 }
 
+include "env" {
+  path           = find_in_parent_folders("env.hcl")
+  expose         = true
+  merge_strategy = "no_merge"
+}
+
 dependency "eks" {
   config_path = "../eks"
 
@@ -23,6 +29,7 @@ terraform {
 }
 
 inputs = {
+  env                  = include.env.locals.env
   cluster_name         = dependency.eks.outputs.cluster_name
   region               = include.root.locals.aws_region
   k8s_host             = dependency.eks.outputs.cluster_endpoint

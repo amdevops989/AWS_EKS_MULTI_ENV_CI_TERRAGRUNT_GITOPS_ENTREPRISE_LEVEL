@@ -12,10 +12,10 @@ include "env" {
 dependency "vpc" {
   config_path = "../vpc"
   mock_outputs = {
-    vpc_id          = "vpc-123456"
-    public_subnet_ids  = ["subnet-a","subnet-b"]
-    private_subnet_ids = ["subnet-c","subnet-d"]
-    intra_subnet_ids   = ["subnet-e","subnet-f"]
+    vpc_id             = "vpc-123456"
+    public_subnet_ids  = ["subnet-a", "subnet-b"]
+    private_subnet_ids = ["subnet-c", "subnet-d"]
+    intra_subnet_ids   = ["subnet-e", "subnet-f"]
   }
   mock_outputs_merge_with_state = true
 }
@@ -29,15 +29,14 @@ terraform {
 }
 
 inputs = {
-  cluster_name         = local.cluster_name
-  region               = include.root.locals.aws_region
-  # profile              = include.root.locals.aws_profile
-  env                  = include.env.locals.env
-  project_name         = include.root.locals.project_name
+  cluster_name    = local.cluster_name
+  region          = include.root.locals.aws_region # Inherits "us-west-1"
+  env             = include.env.locals.env
+  project_name    = include.root.locals.project_name
 
-  vpc_id               = dependency.vpc.outputs.vpc_id
-  private_subnets      = dependency.vpc.outputs.private_subnet_ids
-  intra_subnets        = dependency.vpc.outputs.intra_subnet_ids
+  vpc_id          = dependency.vpc.outputs.vpc_id
+  private_subnets = dependency.vpc.outputs.private_subnet_ids
+  intra_subnets   = dependency.vpc.outputs.intra_subnet_ids
 
   # --- SPOT NODE CONFIGURATION ---
   node_instance_type    = ["m5.xlarge", "m5a.xlarge", "m5d.xlarge", "m6i.xlarge", "m6a.xlarge"] 
@@ -47,12 +46,13 @@ inputs = {
   node_max_capacity     = 1
   # -------------------------------
 
-  ssh_key_name          = ""
+  ssh_key_name = ""
   
   tags = {
     Project     = include.root.locals.project_name
     Environment = include.env.locals.env
   }
+
   cluster_version = "1.33"
   volume_size     = 30
   volume_type     = "gp3"

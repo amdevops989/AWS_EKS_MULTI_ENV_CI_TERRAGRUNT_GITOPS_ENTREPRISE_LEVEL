@@ -7,6 +7,11 @@ variable "region" {
   type        = string
   description = "AWS region"
 }
+variable "env" {
+  type        = string
+  default     = ""
+  description = "Environment name (e.g., dev, staging, prod)"
+}
 
 variable "k8s_namespace" {
   type        = string

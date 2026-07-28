@@ -15,9 +15,18 @@ provider "helm" {
     exec {
       api_version = "client.authentication.k8s.io/v1beta1"
       command     = "aws"
-      # This requires the awscli to be installed locally where Terraform is executed
-      args = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
+      args        = [
+        "eks", "get-token",
+        "--cluster-name", module.eks.cluster_name,
+        "--region", var.region
+      ]
     }
+  }
+
+  registry {
+    url      = "oci://public.ecr.aws"
+    username = data.aws_ecrpublic_authorization_token.token.user_name
+    password = data.aws_ecrpublic_authorization_token.token.password
   }
 }
 
@@ -30,11 +39,13 @@ provider "kubectl" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
-    # This requires the awscli to be installed locally where Terraform is executed
-    args = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
+    args        = [
+      "eks", "get-token",
+      "--cluster-name", module.eks.cluster_name,
+      "--region", var.region
+    ]
   }
 }
-
 terraform {
 
   required_providers {
@@ -57,7 +68,7 @@ terraform {
 ###############################################################################
 # Data Sources
 ###############################################################################
-data "aws_ecrpublic_authorization_token" "token" {}
+# data "aws_ecrpublic_authorization_token" "token" {}
 
 data "aws_caller_identity" "current" {}
 

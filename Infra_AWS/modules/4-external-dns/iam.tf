@@ -1,5 +1,5 @@
 resource "aws_iam_role" "external_dns" {
-  name = "${var.cluster_name}-external-dns-role"
+  name = "${var.cluster_name}-external-dns-role-${var.env}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -19,7 +19,7 @@ resource "aws_iam_role" "external_dns" {
 }
 
 resource "aws_iam_policy" "external_dns" {
-  name        = "${var.cluster_name}-external-dns-policy"
+  name        = "${var.cluster_name}-external-dns-policy-${var.env}"
   description = "Least privilege Route53 policy for ExternalDNS"
 
   policy = jsonencode({

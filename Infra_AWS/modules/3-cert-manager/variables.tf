@@ -48,3 +48,8 @@ variable "oidc_provider_arn" {
   description = "IAM Role ARN for cert-manager service account"
 }
 
+variable "env" {
+  type        = string
+  default     = ""
+  description = "description"
+}

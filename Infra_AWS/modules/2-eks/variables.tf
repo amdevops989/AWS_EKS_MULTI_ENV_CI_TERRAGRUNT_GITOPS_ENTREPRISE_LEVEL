@@ -12,6 +12,11 @@ variable "cluster_version" {
   type        = string
 }
 
+variable "region" {
+  description = "AWS region for the EKS cluster"
+  type        = string
+}
+
 ###############################################################################
 # Networking
 ###############################################################################

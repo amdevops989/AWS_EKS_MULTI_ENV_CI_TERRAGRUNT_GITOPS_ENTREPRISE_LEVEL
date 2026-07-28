@@ -11,9 +11,12 @@ resource "kubernetes_namespace" "cert_manager" {
 # -----------------------------
 # 1. IAM Policy for Route 53 DNS-01 Challenges
 # -----------------------------
+# -----------------------------
+# 1. IAM Policy for Route 53 DNS-01 Challenges
+# -----------------------------
 resource "aws_iam_policy" "cert_manager_route53" {
-  name        = "cert-manager-route53-policy"
-  description = "Allows cert-manager to create DNS-01 TXT records in Route 53"
+  name        = "cert-manager-route53-policy-${var.env}"
+  description = "Allows cert-manager to create DNS-01 TXT records in Route 53 (${var.env})"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -24,7 +27,7 @@ resource "aws_iam_policy" "cert_manager_route53" {
         Resource = "arn:aws:route53:::change/*"
       },
       {
-        Effect   = "Allow" # Fixed: Must be a string, not an array
+        Effect = "Allow"
         Action = [
           "route53:ChangeResourceRecordSets",
           "route53:ListResourceRecordSets"
@@ -43,7 +46,7 @@ resource "aws_iam_policy" "cert_manager_route53" {
 # 2. IAM Role for Cert-Manager (IRSA)
 # -----------------------------
 resource "aws_iam_role" "cert_manager" {
-  name = "cert-manager-route53-role"
+  name = "cert-manager-route53-role-${var.env}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -78,7 +81,7 @@ resource "aws_iam_role_policy_attachment" "cert_manager_attach" {
 # -----------------------------
 resource "kubernetes_service_account" "cert_manager_sa" {
   metadata {
-    name      = var.service_account_name
+    name      = "${var.service_account_name}-${var.env}"
     namespace = kubernetes_namespace.cert_manager.metadata[0].name
     annotations = {
       "eks.amazonaws.com/role-arn" = aws_iam_role.cert_manager.arn
