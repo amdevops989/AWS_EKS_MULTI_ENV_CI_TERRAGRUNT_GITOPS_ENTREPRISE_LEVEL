@@ -56,9 +56,12 @@ metadata:
   annotations:
     argocd.argoproj.io/compare-options: IgnoreExtraneous
 data:
-  POSTGRES_USER: "devopsadmin"
-  POSTGRES_DB: "app_dev"
-  DB_HOST: "database-engine.dev.svc.cluster.local"
+  POSTGRES_USER: "dbadmin"
+  POSTGRES_DB: "ironcore"
+  # Replace with your actual RDS endpoint created by Terraform
+  DB_HOST: "vanguardyouth-dev-primary-db.c4l8k6c82k7i.us-east-1.rds.amazonaws.com"
+  DB_PORT: "5432"
+  PGSSLMODE: "no-verify"
 
 ---
 apiVersion: v1
@@ -68,7 +71,7 @@ metadata:
   namespace: dev
 type: Opaque
 stringData:
-  POSTGRES_PASSWORD: "secretpassword"
+  POSTGRES_PASSWORD: "YourSecretPassword123!"
 
 ---
 # ==========================================================
@@ -94,10 +97,12 @@ spec:
       annotations:
         proxy.istio.io/config: |
           holdApplicationUntilProxyStarts: true
+        # 🌟 BYPASS ISTIO SIDECAR FOR DIRECT RDS COMMUNICATION:
+        traffic.sidecar.istio.io/excludeOutboundPorts: "5432"
     spec:
       containers:
         - name: backend-ui
-          image: "devopsflow999/crud-backend:v1.0.10" # Update image repository and tag as needed
+          image: "devopsflow999/crud-backend:v1.0.17" # Update image repository and tag as needed
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
@@ -107,6 +112,11 @@ spec:
                 configMapKeyRef:
                   name: backend-config
                   key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: DB_PORT
             - name: DB_USER
               valueFrom:
                 configMapKeyRef:

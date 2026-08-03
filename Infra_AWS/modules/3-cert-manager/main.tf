@@ -6,11 +6,7 @@ resource "kubernetes_namespace" "cert_manager" {
     name = var.k8s_namespace
   }
 }
-# -----------------------------
 
-# -----------------------------
-# 1. IAM Policy for Route 53 DNS-01 Challenges
-# -----------------------------
 # -----------------------------
 # 1. IAM Policy for Route 53 DNS-01 Challenges
 # -----------------------------
@@ -42,6 +38,7 @@ resource "aws_iam_policy" "cert_manager_route53" {
     ]
   })
 }
+
 # -----------------------------
 # 2. IAM Role for Cert-Manager (IRSA)
 # -----------------------------
@@ -59,8 +56,8 @@ resource "aws_iam_role" "cert_manager" {
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
           StringEquals = {
-            # Safely strips the prefix to leave only "oidc.eks.us-east-1.amazonaws.com/id/XXXXX:sub"
-            "${element(split("oidc-provider/", var.oidc_provider_arn), 1)}:sub" = "system:serviceaccount:${kubernetes_namespace.cert_manager.metadata[0].name}:${var.service_account_name}"
+            # FIX: Added "-${var.env}" to match the actual Service Account name created below
+            "${element(split("oidc-provider/", var.oidc_provider_arn), 1)}:sub" = "system:serviceaccount:${kubernetes_namespace.cert_manager.metadata[0].name}:${var.service_account_name}-${var.env}"
           }
         }
       }
@@ -88,6 +85,7 @@ resource "kubernetes_service_account" "cert_manager_sa" {
     }
   }
 }
+
 # -----------------------------
 # Helm Release
 # -----------------------------
@@ -132,8 +130,9 @@ resource "helm_release" "cert_manager" {
   ]
 }
 
+
 # -----------------------------
-# Cluster Issuers
+# Production ClusterIssuer (DNS-01)
 # -----------------------------
 resource "kubectl_manifest" "production_cluster_issuer" {
   yaml_body = <<YAML
@@ -159,6 +158,9 @@ YAML
   ]
 }
 
+# -----------------------------
+# Production ClusterIssuer (HTTP-01)
+# -----------------------------
 resource "kubectl_manifest" "production_cluster_issuer_http" {
   yaml_body = <<YAML
 apiVersion: cert-manager.io/v1
@@ -183,6 +185,9 @@ YAML
   ]
 }
 
+# -----------------------------
+# Staging ClusterIssuer (HTTP-01)
+# -----------------------------
 resource "kubectl_manifest" "staging_cluster_issuer_http" {
   yaml_body = <<YAML
 apiVersion: cert-manager.io/v1

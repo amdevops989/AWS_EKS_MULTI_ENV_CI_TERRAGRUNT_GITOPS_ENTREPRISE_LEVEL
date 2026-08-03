@@ -1,0 +1,26 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: rds-external-entry
+  namespace: dev
+spec:
+  hosts:
+  - vvanguardyouth-dev-primary-db.c4l8k6c82k7i.us-east-1.rds.amazonaws.com
+  ports:
+  - number: 5432
+    name: postgres
+    protocol: TCP
+  location: MESH_EXTERNAL
+  resolution: DNS
+---
+
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: rds-bypass-mtls
+  namespace: dev
+spec:
+  host: vvanguardyouth-dev-primary-db.c4l8k6c82k7i.us-east-1.rds.amazonaws.com
+  trafficPolicy:
+    tls:
+      mode: DISABLE

@@ -11,7 +11,7 @@ resource "aws_iam_role" "external_dns" {
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = {
-          "${replace(var.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:${var.k8s_namespace}:${var.service_account_name}"
+          "${replace(var.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:${var.k8s_namespace}:${var.service_account_name}-${var.env}"
         }
       }
     }]
