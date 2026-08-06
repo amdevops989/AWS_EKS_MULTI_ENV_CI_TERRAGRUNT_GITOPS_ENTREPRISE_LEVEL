@@ -23,10 +23,10 @@ variable "k8s_ca" {
   description = "Base64-encoded Kubernetes CA"
 }
 
-variable "k8s_token" {
-  type        = string
-  description = "Kubernetes Bearer token"
-}
+# variable "k8s_token" {
+#   type        = string
+#   description = "Kubernetes Bearer token"
+# }
 
 variable "role_name" {
   type        = string

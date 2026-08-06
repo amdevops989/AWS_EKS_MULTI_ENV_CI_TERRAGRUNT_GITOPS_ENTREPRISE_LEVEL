@@ -15,7 +15,6 @@ terraform {
 
 dependency "vpc" {
   config_path = "../vpc"
-
   mock_outputs = {
     private_subnet_ids = ["subnet-11111111", "subnet-22222222"]
   }
@@ -25,12 +24,24 @@ dependency "vpc" {
 
 dependency "rds_sg" {
   config_path = "../rds-sg"
-  
   mock_outputs = {
     security_group_id = "sg-999999999"
   }
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "terragrunt-validate", "apply", "destroy"]
   mock_outputs_merge_strategy_with_state  = "shallow"
+}
+
+# 🌟 Automatically generates a Terraform file that saves the random secret ARN into SSM
+generate "ssm_pointer" {
+  path      = "ssm_pointer.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<EOF
+resource "aws_ssm_parameter" "rds_secret_arn" {
+  name  = "/${include.root.locals.project_name}/${include.env.locals.env}/rds_secret_arn"
+  type  = "String"
+  value = module.db_instance.db_instance_master_user_secret_arn
+}
+EOF
 }
 
 inputs = {
@@ -45,21 +56,19 @@ inputs = {
   allocated_storage     = 20
   max_allocated_storage = 100
 
-  db_name  = "ironcore"
+  db_name  = "vanguardyouth"
   username = "dbadmin"
 
-  manage_master_user_password = false
-  password                    = "YourSecretPassword123!"
+  # AWS automatically creates and manages secret in Secrets Manager
+  manage_master_user_password = true
 
-  port = 5432
-
+  port                    = 5432
   backup_retention_period = 7
   deletion_protection     = false
 
   create_db_subnet_group = true
   subnet_ids             = dependency.vpc.outputs.private_subnet_ids
 
-  # Link the dedicated external security group directly
   vpc_security_group_ids = [dependency.rds_sg.outputs.security_group_id]
 
   create_db_parameter_group = true
