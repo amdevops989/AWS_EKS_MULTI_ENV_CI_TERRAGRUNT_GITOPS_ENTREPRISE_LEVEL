@@ -9,7 +9,6 @@ include "env" {
   merge_strategy = "no_merge"
 }
 
-
 dependency "eks" {
   config_path = "../eks"
 
@@ -44,5 +43,18 @@ inputs = {
   zone_type            = "public"
   hosted_zone_id       = "Z0195540TGGJPD1QICHW"
   helm_chart_version   = "1.19.0"
-  # profile              = include.root.locals.aws_profile
+
+  # 🌟 CRITICAL FOR ISTIO GATEWAY DISCOVERY:
+  # Instructs external-dns to listen for Istio Gateway & VirtualService CRDs
+  sources = [
+    "service",
+    "ingress",
+    "istio-gateway",
+    "istio-virtualservice"
+  ]
+
+  # 🌟 CRITICAL FOR DEV & DR COEXISTENCE:
+  # Isolates DEV ownership in Route 53 TXT records
+  txt_owner_id = "external-dns-${include.env.locals.env}"
+  txt_prefix   = "site-k8s-"
 }

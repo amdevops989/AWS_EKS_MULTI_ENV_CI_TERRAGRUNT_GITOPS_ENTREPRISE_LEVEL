@@ -1,0 +1,14 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: vanguardyouth-dev-tls
+  namespace: istio-ingress # MUST match the Helm gateway release namespace!
+spec:
+  # 🌟 Updated secret name to avoid collision with DR/Prod certificates
+  secretName: vanguardyouth-dev-tls-cert
+  issuerRef:
+    name: production-cluster-issuer # Ensure this Issuer has a DNS-01 route53 solver for wildcards!
+    kind: ClusterIssuer
+  dnsNames:
+    - "dev.vanguardyouth.store"
+    - "*.dev.vanguardyouth.store" # 🌟 Matches api.dev.vanguardyouth.store, app.dev.vanguardyouth.store, etc.

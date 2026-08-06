@@ -39,6 +39,18 @@ dependency "vpc" {
   mock_outputs_merge_strategy_with_state  = "shallow"
 }
 
+# 🌟 1. Fetch DR Security Group ID
+dependency "rds_sg" {
+  config_path = "../rds-sg"
+
+  mock_outputs = {
+    security_group_id = "sg-888888888"
+  }
+
+  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "terragrunt-validate"]
+  mock_outputs_merge_strategy_with_state  = "shallow"
+}
+
 inputs = {
   aws_region = include.root.locals.aws_region
 
@@ -61,12 +73,9 @@ inputs = {
   create_db_subnet_group = true
   subnet_ids             = dependency.vpc.outputs.private_subnet_ids
 
-  create_db_security_group = true
-  vpc_id                   = dependency.vpc.outputs.vpc_id
-  allowed_cidr_blocks      = [
-    dependency.vpc.outputs.vpc_cidr_block,
-    "10.10.0.0/16"
-  ]
+  # 🌟 2. Link External Security Group instead of creating an inline SG
+  create_db_security_group = false
+  vpc_security_group_ids   = [dependency.rds_sg.outputs.security_group_id]
 
   tags = {
     Terraform   = "true"

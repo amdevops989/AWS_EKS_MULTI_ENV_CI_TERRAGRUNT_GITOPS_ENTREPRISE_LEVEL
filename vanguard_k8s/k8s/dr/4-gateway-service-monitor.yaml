@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istio-gateway-monitor
+  namespace: monitoring # Placed in central monitoring namespace
+  labels:
+    release: prometheus-stack # 🌟 MUST match your Helm release label for Prometheus Operator
+spec:
+  namespaceSelector:
+    matchNames:
+      - istio-ingress # 🌟 Points to where the Gateway Service lives
+  selector:
+    matchLabels:
+      app: gateway # 🌟 Matches labels on the Istio Gateway Service
+  endpoints:
+    - port: http-envoy-prom # Matches port name configured in Terraform extraPorts
+      path: /stats/prometheus
+      interval: 15s

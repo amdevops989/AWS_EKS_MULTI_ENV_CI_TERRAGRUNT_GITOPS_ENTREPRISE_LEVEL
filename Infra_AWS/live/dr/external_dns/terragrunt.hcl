@@ -9,7 +9,6 @@ include "env" {
   merge_strategy = "no_merge"
 }
 
-
 dependency "eks" {
   config_path = "../eks"
 
@@ -44,5 +43,9 @@ inputs = {
   zone_type            = "public"
   hosted_zone_id       = "Z0195540TGGJPD1QICHW"
   helm_chart_version   = "1.19.0"
-  # profile              = include.root.locals.aws_profile
+
+  # 🌟 CRITICAL FOR DEV & DR COEXISTENCE:
+  # Prevents DR external-dns from deleting or stealing DEV records in Route 53
+  txt_owner_id         = "external-dns-${include.env.locals.env}"
+  txt_prefix           = "site-k8s-"
 }

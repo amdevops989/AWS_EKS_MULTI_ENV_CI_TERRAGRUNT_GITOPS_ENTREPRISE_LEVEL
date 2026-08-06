@@ -1,0 +1,160 @@
+# ==========================================================
+# 1. ARGO ROLLOUT ANALYSIS TEMPLATE (FRONTEND)
+# ==========================================================
+# apiVersion: argoproj.io/v1alpha1
+# kind: AnalysisTemplate
+# metadata:
+#   name: frontend-success-rate
+#   namespace: dev
+# spec:
+#   metrics:
+#     # --------------------------------------------------------
+#     # METRIC 1: frontend Canary Error Rate (Must be under 1%)
+#     # --------------------------------------------------------
+#     - name: http-error-rate
+#       interval: 30s
+#       count: 3
+#       successCondition: result[0] < 0.01
+#       failureLimit: 1
+#       consecutiveErrorLimit: 3
+#       provider:
+#         prometheus:
+#           address: http://kube-prom-stack-kube-prome-prometheus.monitoring.svc.cluster.local:9090
+#           query: |
+#             (
+#               sum(rate(istio_requests_total{reporter="destination",destination_service_name="frontend-canary",response_code=~"5.*"}[1m]))
+#               /
+#               sum(rate(istio_requests_total{reporter="destination",destination_service_name="frontend-canary"}[1m]))
+#             ) or vector(0)
+
+#     # --------------------------------------------------------
+#     # METRIC 2: frontend Canary Latency Check (P95 under 200ms)
+#     # --------------------------------------------------------
+#     - name: http-latency
+#       interval: 30s
+#       count: 3
+#       successCondition: result[0] < 200   # Expressed directly in milliseconds
+#       failureLimit: 2
+#       consecutiveErrorLimit: 3
+#       provider:
+#         prometheus:
+#           address: http://kube-prom-stack-kube-prome-prometheus.monitoring.svc.cluster.local:9090
+#           query: |
+#             (
+#               histogram_quantile(0.95, sum(rate(istio_request_duration_milliseconds_bucket{reporter="destination",destination_service_name="frontend-canary"}[2m])) by (le))
+#             ) or vector(50)                # Default fallback in ms
+---
+# ==========================================================
+# 2. FRONTEND CANARY ROLLOUT
+# ==========================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: frontend
+  namespace: dev
+  labels:
+    app: frontend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+        devopsteam: ironcore-devops
+      annotations:
+        proxy.istio.io/config: |
+          holdApplicationUntilProxyStarts: true
+    spec:
+      containers:
+        - name: frontend-ui
+          image: "devopsflow999/crud-frontend:v1.0.10"
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+  strategy:
+    canary:
+      stableService: frontend-stable
+      canaryService: frontend-canary
+      trafficRouting:
+        istio:
+          virtualService:
+            name: frontend-vservice
+            routes:
+              - frontend-route
+      steps:
+        - setWeight: 20
+        - pause: { duration: 1m }
+        # - analysis:
+        #     templates:
+        #       - templateName: frontend-success-rate
+        - setWeight: 50
+        - pause: { duration: 2m }
+
+---
+# ==========================================================
+# 3. KUBERNETES SERVICES (CANARY & STABLE)
+# ==========================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-canary
+  namespace: dev
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+      name: http
+  selector:
+    app: frontend
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-stable
+  namespace: dev
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+      name: http
+  selector:
+    app: frontend
+
+---
+# ==========================================================
+# 4. ISTIO VIRTUAL SERVICE
+# ==========================================================
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: frontend-vservice
+  namespace: dev
+spec:
+  hosts:
+    # 🌟 1. Use DEV domain prefix so it binds to your DEV external-dns & Gateway
+    - "dev.vanguardyouth.store"
+    - "frontend-stable"
+    - "frontend-canary"
+  gateways:
+    # 🌟 2. Match the exact DEV gateway name deployed in istio-ingress
+    - istio-ingress/vanguardyouth-dev-shared-gateway
+    - mesh # Keeps internal sidecar-to-sidecar routing active
+  http:
+    - name: frontend-route
+      route:
+        - destination:
+            host: frontend-stable
+            port:
+              number: 80
+          weight: 100
+        - destination:
+            host: frontend-canary
+            port:
+              number: 80
+          weight: 0

@@ -15,7 +15,14 @@ resource "helm_release" "external_dns" {
       }
       timeout       = 300
       domainFilters = var.domain_filters
-      txtOwnerId    = var.cluster_name
+      
+      # 🌟 Enable Istio Gateway / VirtualService monitoring
+      sources       = var.sources
+
+      # 🌟 Dynamic per-environment ownership with fallback
+      txtOwnerId    = var.txt_owner_id != "" ? var.txt_owner_id : "external-dns-${var.env}"
+      txtPrefix     = var.txt_prefix
+      
       policy        = "upsert-only"
       zoneType      = var.zone_type
       extraArgs     = ["--zone-id-filter=${var.hosted_zone_id}"]
@@ -24,10 +31,8 @@ resource "helm_release" "external_dns" {
       # Force to main node group
       # -----------------------
       nodeSelector = {
-        role = "main"   # <- matches your MNG label
+        role = "main" # <- matches your MNG label
       }
-
-      # No tolerations needed since MNG has no taints
     })
   ]
 

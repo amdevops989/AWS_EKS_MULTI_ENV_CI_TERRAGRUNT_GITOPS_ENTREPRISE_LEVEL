@@ -5,7 +5,7 @@ metadata:
   namespace: dev
 spec:
   hosts:
-  - vvanguardyouth-dev-primary-db.c4l8k6c82k7i.us-east-1.rds.amazonaws.com
+  - vanguardyouth-dev-primary-db.c4l8k6c82k7i.us-east-1.rds.amazonaws.com
   ports:
   - number: 5432
     name: postgres
@@ -20,7 +20,7 @@ metadata:
   name: rds-bypass-mtls
   namespace: dev
 spec:
-  host: vvanguardyouth-dev-primary-db.c4l8k6c82k7i.us-east-1.rds.amazonaws.com
+  host: vanguardyouth-dev-primary-db.c4l8k6c82k7i.us-east-1.rds.amazonaws.com
   trafficPolicy:
     tls:
       mode: DISABLE

@@ -1,0 +1,32 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: vanguardyouth-dev-shared-gateway
+  namespace: istio-ingress
+  annotations:
+    # 🌟 Updated to dev subdomain so external-dns provisions a dev-specific Route 53 record
+    external-dns.alpha.kubernetes.io/hostname: "dev.vanguardyouth.store, *.dev.vanguardyouth.store"
+spec:
+  selector:
+    istio: gateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "dev.vanguardyouth.store"
+        - "*.dev.vanguardyouth.store"
+      tls:
+        httpsRedirect: true
+
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      hosts:
+        - "dev.vanguardyouth.store"
+        - "*.dev.vanguardyouth.store"
+      tls:
+        mode: SIMPLE
+        credentialName: vanguardyouth-dev-tls-cert

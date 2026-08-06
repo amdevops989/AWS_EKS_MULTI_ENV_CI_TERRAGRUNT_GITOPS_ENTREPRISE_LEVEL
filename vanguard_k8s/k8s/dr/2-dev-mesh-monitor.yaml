@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: dev-mesh-monitor
+  namespace: monitoring
+  labels:
+    release: kube-prom-stack # Matches your Prometheus Operator selector
+spec:
+  namespaceSelector:
+    matchNames:
+      - dev # Targets the dev namespace
+  selector:
+    matchLabels:
+      devopsteam: ironcore-devops # Automatically matches all sidecar-injected pods
+  podMetricsEndpoints:
+    - port: http-envoy-prom # Hits port 15090 inside the Envoy container
+      path: /stats/prometheus
+      interval: 15s

@@ -7,6 +7,7 @@ variable "region" {
   type        = string
   description = "AWS region"
 }
+
 variable "env" {
   type        = string
   default     = ""
@@ -51,7 +52,26 @@ variable "hosted_zone_id" {
 
 variable "helm_chart_version" {
   type        = string
-  default     = "9.0.3"
+  default     = "1.19.0"
+}
+
+# 🌟 NEW VARIABLES FOR MULTI-ENV & ISTIO SUPPORT
+variable "sources" {
+  type        = list(string)
+  default     = ["service", "ingress", "istio-gateway", "istio-virtualservice"]
+  description = "List of K8s / Istio resources ExternalDNS monitors"
+}
+
+variable "txt_owner_id" {
+  type        = string
+  default     = ""
+  description = "Unique ID for Route53 TXT records ownership per cluster"
+}
+
+variable "txt_prefix" {
+  type        = string
+  default     = "site-k8s-"
+  description = "Prefix for Route53 TXT record ownership keys"
 }
 
 variable "k8s_host" {
@@ -66,7 +86,7 @@ variable "k8s_token" {
   type = string
 }
 
-
 variable "profile" {
-  type = string
+  type    = string
+  default = ""
 }
