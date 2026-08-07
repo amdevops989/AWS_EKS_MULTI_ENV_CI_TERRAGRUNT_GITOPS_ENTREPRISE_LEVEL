@@ -11,3 +11,6 @@ echo $TF_PLUGIN_CACHE_DIR
 
 
 find . -type d -name ".terragrunt-cache" -prune -exec rm -rf {} +  in case you wanna restart fresher 
+
+
+terragrunt state rm aws_ssm_parameter.rds_secret_arn

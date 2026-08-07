@@ -11,8 +11,15 @@ data "aws_iam_policy_document" "assume_role" {
 
     condition {
       test     = "StringEquals"
-      variable = "${replace(var.oidc_provider_arn, "/^https?:\\/\\//", "")}:sub"
+      # 🌟 MUST use oidc_provider_url without https:// prefix
+      variable = "${replace(var.oidc_provider_url, "https://", "")}:sub"
       values   = ["system:serviceaccount:${var.namespace}:${var.service_account_name}"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(var.oidc_provider_url, "https://", "")}:aud"
+      values   = ["sts.amazonaws.com"]
     }
   }
 }

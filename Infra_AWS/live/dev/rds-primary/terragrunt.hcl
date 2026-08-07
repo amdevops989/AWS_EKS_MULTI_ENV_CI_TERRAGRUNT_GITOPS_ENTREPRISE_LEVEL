@@ -31,15 +31,40 @@ dependency "rds_sg" {
   mock_outputs_merge_strategy_with_state  = "shallow"
 }
 
-# 🌟 Automatically generates a Terraform file that saves the random secret ARN into SSM
-generate "ssm_pointer" {
-  path      = "ssm_pointer.tf"
+# 🌟 1. Standard Terraform file for new resource creation (NO _override suffix)
+generate "predictable_secret" {
+  path      = "predictable_secret.tf"
   if_exists = "overwrite_terragrunt"
   contents  = <<EOF
-resource "aws_ssm_parameter" "rds_secret_arn" {
-  name  = "/${include.root.locals.project_name}/${include.env.locals.env}/rds_secret_arn"
-  type  = "String"
-  value = module.db_instance.db_instance_master_user_secret_arn
+resource "random_password" "master_password" {
+  length  = 24
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "rds_credentials" {
+  name                    = "${include.root.locals.project_name}/${include.env.locals.env}/rds-cred"
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "rds_credentials" {
+  secret_id     = aws_secretsmanager_secret.rds_credentials.id
+  secret_string = jsonencode({
+    username = "dbadmin"
+    password = random_password.master_password.result
+    dbname   = "vanguardyouth"
+    port     = "5432"
+  })
+}
+EOF
+}
+
+# 🌟 2. Separate override file reserved STRICTLY for overriding the module invocation
+generate "module_override" {
+  path      = "module_override.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<EOF
+module "db_instance" {
+  password = random_password.master_password.result
 }
 EOF
 }
@@ -59,8 +84,7 @@ inputs = {
   db_name  = "vanguardyouth"
   username = "dbadmin"
 
-  # AWS automatically creates and manages secret in Secrets Manager
-  manage_master_user_password = true
+  manage_master_user_password = false
 
   port                    = 5432
   backup_retention_period = 7
