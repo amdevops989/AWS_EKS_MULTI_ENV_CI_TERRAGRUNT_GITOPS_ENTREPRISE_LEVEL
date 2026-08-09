@@ -47,6 +47,12 @@ const inventoryOperationsCounter = new client.Counter({
 
 // 3. Database Initialization with Retry Loop
 const initDb = async (retries = 5, delay = 3000) => {
+  // 🌟 Check if database initialization should be skipped (e.g. on Read Replicas)
+  if (process.env.SKIP_DB_INIT === 'true' || process.env.SKIP_DB_INIT === '1') {
+    console.log('⏭️ SKIP_DB_INIT is set to true. Skipping database table creation.');
+    return;
+  }
+
   while (retries > 0) {
     try {
       const client = await pool.connect();

@@ -4,7 +4,7 @@ include "root" {
 }
 
 locals {
-  domains = "vanguardyouth.store"
+  domains = "dev.vanguardyouth.store"
 }
 dependency "eks" {
   config_path = "../eks"

@@ -4,8 +4,8 @@ metadata:
   name: vanguardyouth-dr-shared-gateway
   namespace: istio-ingress
   annotations:
-    # 🌟 Updated to dev subdomain so external-dns provisions a dev-specific Route 53 record
-    external-dns.alpha.kubernetes.io/hostname: "dev.vanguardyouth.store, *.dev.vanguardyouth.store"
+    # 🌟 Route 53 DNS target for root & wildcard production domains in DR
+    external-dns.alpha.kubernetes.io/hostname: "vanguardyouth.store, *.vanguardyouth.store"
 spec:
   selector:
     istio: gateway

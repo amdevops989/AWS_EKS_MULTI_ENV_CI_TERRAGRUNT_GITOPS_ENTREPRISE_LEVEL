@@ -44,8 +44,10 @@ inputs = {
   hosted_zone_id       = "Z0195540TGGJPD1QICHW"
   helm_chart_version   = "1.19.0"
 
-  # 🌟 CRITICAL FOR DEV & DR COEXISTENCE:
-  # Prevents DR external-dns from deleting or stealing DEV records in Route 53
   txt_owner_id         = "external-dns-${include.env.locals.env}"
   txt_prefix           = "site-k8s-"
+
+  # 🌟 Force sync policy and legacy record adoption:
+  policy               = "sync"
+  extra_args           = ["--overwrite-legacy"]
 }

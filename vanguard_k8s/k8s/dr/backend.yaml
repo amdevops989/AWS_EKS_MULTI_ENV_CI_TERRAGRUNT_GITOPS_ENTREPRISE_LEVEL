@@ -48,32 +48,72 @@
 # ==========================================================
 # 2. DATABASE CONFIGURATION CONFIGMAP & SECRET
 # ==========================================================
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: backend-config
+#   namespace: dev
+#   annotations:
+#     argocd.argoproj.io/compare-options: IgnoreExtraneous
+# data:
+#   POSTGRES_USER: "dbadmin"
+#   POSTGRES_DB: "ironcore"
+#   # Replace with your actual RDS endpoint created by Terraform
+#   DB_HOST: "db.internal.vanguardyouth.store"
+#   DB_PORT: "5432"
+#   PGSSLMODE: "no-verify"
+
+# ---
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: backend-secret
+#   namespace: dev
+# type: Opaque
+# stringData:
+#   POSTGRES_PASSWORD: "YourSecretPassword123!"
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: backend-config
-  namespace: dr
+  namespace: dev
   annotations:
     argocd.argoproj.io/compare-options: IgnoreExtraneous
 data:
   POSTGRES_USER: "dbadmin"
-  POSTGRES_DB: "ironcore"
-  # Replace with your actual RDS endpoint created by Terraform
-  DB_HOST: "vanguardyouth-dev-primary-db.c4l8k6c82k7i.us-east-1.rds.amazonaws.com"
+  POSTGRES_DB: "vanguardyouth"
+  DB_HOST: "db.dr.internal.vanguardyouth.store"
   DB_PORT: "5432"
   PGSSLMODE: "no-verify"
+  # 🌟 Disable schema initialization / DDL executions on Read Replica
+  SKIP_DB_INIT: "true"
 
 ---
-apiVersion: v1
-kind: Secret
-metadata:
-  name: backend-secret
-  namespace: dr
-type: Opaque
-stringData:
-  POSTGRES_PASSWORD: "YourSecretPassword123!"
+# apiVersion: external-secrets.io/v1beta1
+# kind: ExternalSecret
+# metadata:
+#   name: rds-backend-secret
+#   namespace: dev
+# spec:
+#   refreshInterval: 1h
+#   secretStoreRef:
+#     name: aws-secretsmanager
+#     kind: ClusterSecretStore
+#   target:
+#     name: backend-secret # 🌟 K8s Secret created in namespace 'dev'
+#     creationPolicy: Owner
+#   data:
+#     - secretKey: POSTGRES_PASSWORD
+#       remoteRef:
+#         key: "vanguardyouth/dr/rds-cred" # Predictable path in Secrets Manager
+#         property: password
+#     - secretKey: POSTGRES_USER
+#       remoteRef:
+#         key: "vanguardyouth/dr/rds-cred"
+#         property: username
 
----
+# ---
 # ==========================================================
 # 3. BACKEND CANARY ROLLOUT
 # ==========================================================
@@ -81,11 +121,11 @@ apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata:
   name: backend
-  namespace: dr
+  namespace: dev
   labels:
     app: backend
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: backend
@@ -102,11 +142,16 @@ spec:
     spec:
       containers:
         - name: backend-ui
-          image: "devopsflow999/crud-backend:v1.0.17" # Update image repository and tag as needed
+          image: "devopsflow999/crud-backend:v1.0.18" # Update image repository and tag as needed
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
           env:
+            - name: SKIP_DB_INIT
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: SKIP_DB_INIT
             - name: DB_HOST
               valueFrom:
                 configMapKeyRef:
@@ -148,13 +193,14 @@ spec:
             routes:
               - backend-route
       steps:
-        - setWeight: 20
-        - pause: { duration: 3m }
-        # - analysis:
-        #     templates:
-        #       - templateName: backend-success-rate
-        - setWeight: 50
-        - pause: { duration: 2m }
+        - setWeight: 100 # Direct 100% traffic immediately during failover
+        # - setWeight: 20
+        # - pause: { duration: 3m }
+        # # - analysis:
+        # #     templates:
+        # #       - templateName: backend-success-rate
+        # - setWeight: 50
+        # - pause: { duration: 2m }
 
 ---
 # ==========================================================
@@ -164,7 +210,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: backend-canary
-  namespace: dr
+  namespace: dev
 spec:
   ports:
     - port: 3000
@@ -179,7 +225,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: backend-stable
-  namespace: dr
+  namespace: dev
 spec:
   ports:
     - port: 3000
@@ -197,7 +243,7 @@ apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   name: backend-vservice
-  namespace: dr
+  namespace: dev
 spec:
   hosts:
     # 🌟 1. Updated to match your DEV domain setup
